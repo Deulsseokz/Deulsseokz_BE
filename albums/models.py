@@ -1,0 +1,54 @@
+from django.db import models
+from users.models import User
+from places.models import Place
+
+# Create your models here.
+class Photo(models.Model):
+    photoId = models.BigAutoField(primary_key=True)
+    albumId = models.ForeignKey(
+        'Album',
+        on_delete=models.CASCADE,
+        db_column='albumId',
+        related_name='photos'
+    )
+    feelings = models.CharField(max_length=255, null=True, blank=True)
+    weather = models.CharField(max_length=255, null=True, blank=True)
+    photoContent = models.CharField(max_length=500, null=True, blank=True)
+    date = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'Photo'
+
+    def __str__(self):
+        return f"{self.albumId} 사진 {self.photoId}"
+
+
+class Album(models.Model):
+    albumId = models.BigAutoField(primary_key=True)
+
+    userId = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        db_column='userId',
+        related_name='albums'
+    )
+    placeId = models.ForeignKey(
+        Place,
+        on_delete=models.CASCADE,
+        db_column='placeId',
+        related_name='albums'
+    )
+    representativePhotoId = models.ForeignKey(
+        Photo,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='representativePhotoId',
+        related_name='representative_albums'
+    )
+
+    class Meta:
+        db_table = 'Album'
+
+    def __str__(self):
+        return f"앨범 {self.albumId} - {self.userId}"
