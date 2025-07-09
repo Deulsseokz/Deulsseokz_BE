@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework import status
 from .models import Challenge
-from .serializers import ChallengeResponseSerializer
+from .serializers import ChallengeResponseSerializer, ChallengeAttemptSerializer
 from .query_serializers import ChallengeQuerySerializer
 from utils.response_wrapper import api_response
 
@@ -24,3 +24,14 @@ class ChallengeInfoView(APIView):
             )
         response_serializer = ChallengeResponseSerializer(challenge)
         return api_response(result=response_serializer.data)
+    
+# 챌린지 도전
+class ChallengeAttempt(APIView):
+    def post(self, request):
+        request_data = ChallengeAttemptSerializer(data = request)
+        request_data.is_valid(raise_exception=True)
+
+        place = request_data.validated_data['place']
+        friends = request_data.validated_data['friends']
+        attemptImage = request_data.validated_data['attemptImage']
+        attemptDate = request_data.validated_data['attemptDate']
