@@ -1,10 +1,12 @@
 import requests
+import logging
 from rest_framework.views import APIView
 from rest_framework import status
 from .models import Challenge, ChallengeAttempt
 from .serializers import ChallengeResponseSerializer, ChallengeAttemptSerializer
 from .query_serializers import ChallengeQuerySerializer
 from utils.response_wrapper import api_response
+logger = logging.getLogger(__name__)
 
 # 챌린지 정보 조회
 class ChallengeInfoView(APIView):
@@ -60,6 +62,8 @@ class ChallengeAttempt(APIView):
                 is_success=False,
                 result={"error": str(e)}
             )
+        
+        logger.info(f"[POSE ANALYSIS RESULT] {analysis_result}")
 
         # 해당하는 장소의 조건 중 장소에 관련된 것과 포즈 분석한 결과를 비교 
         # 조건 중에 find 함수 사용해 특정 단어 포함되어 있는 지 확인 해 추출 
@@ -71,7 +75,7 @@ class ChallengeAttempt(APIView):
         }
 
         # attemptImage는 .read() 했기 때문에 다시 읽어야 함
-        attemptImage.seek(0)
+        attemptImage.seek(0) # 다시 읽도록 포인터 초기화
         files['file'] = (attemptImage.name, attemptImage.read(), attemptImage.content_type)
 
         try:
@@ -96,9 +100,11 @@ class ChallengeAttempt(APIView):
         # )
         # serializer = ChallengeAttemptSerializer(attempt_instance)
 
+        logger.info(f"[LOCATION ANALYSIS RESULT] {location_result}")
+
         return api_response(
-            result={
-                "pose_analysis": analysis_result,
-                "location_prediction": location_result
-            }
+            # result={
+            #     "pose_analysis": analysis_result,
+            #     "location_prediction": location_result
+            # }
         )
