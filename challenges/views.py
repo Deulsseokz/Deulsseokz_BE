@@ -61,6 +61,32 @@ class ChallengeAttempt(APIView):
                 result={"error": str(e)}
             )
 
+        # 해당하는 장소의 조건 중 장소에 관련된 것과 포즈 분석한 결과를 비교 
+        # 조건 중에 find 함수 사용해 특정 단어 포함되어 있는 지 확인 해 추출 
+
+        # === (장소 판별 호출) ===
+        fastapi_location_url = "http://127.0.0.1:8000/analyze/location"
+        location_payload = {
+            'candidates': place  # place가 string이라면 list로 감싸줍니다.
+        }
+
+        # attemptImage는 .read() 했기 때문에 다시 읽어야 함
+        attemptImage.seek(0)
+        files['file'] = (attemptImage.name, attemptImage.read(), attemptImage.content_type)
+
+        try:
+            location_response = requests.post(fastapi_location_url, files=files, data=location_payload)
+            location_response.raise_for_status()
+            location_result = location_response.json()
+        except requests.exceptions.RequestException as e:
+            return api_response(
+                code="LOCATION_ANALYSIS_FAILED",
+                message="장소 판별 실패",
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                is_success=False,
+                result={"error": str(e)}
+            )
+
         # DB 저장
         # attempt_instance = ChallengeAttempt.objects.create(
         #     result=analysis_result.get("pose"),
@@ -72,11 +98,7 @@ class ChallengeAttempt(APIView):
 
         return api_response(
             result={
-                "place": place,
-                "friends": friends,
-                "attemptDate": attemptDate,
                 "pose_analysis": analysis_result,
-                # "attempt": serializer.data
-            },
-            message="챌린지 시도 분석 완료"
+                "location_prediction": location_result
+            }
         )
