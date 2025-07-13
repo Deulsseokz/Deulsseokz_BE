@@ -54,7 +54,7 @@ class FavoritePlaceView(APIView):
     # 관심 장소 조회
     def get(self, request):
         try:
-            user = User.objects.get(userId=2)
+            user = User.objects.get(userId=1)
         except User.DoesNotExist:
             return api_response(
                 status_code=status.HTTP_404_NOT_FOUND
