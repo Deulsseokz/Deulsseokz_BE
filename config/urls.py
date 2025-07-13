@@ -43,4 +43,5 @@ urlpatterns = [
     path('challenge/', include('challenges.urls')),
     path('place/', include('places.urls')),
     path('album/', include('albums.urls')),
+    path('photo/', include('albums.urls')),
 ]

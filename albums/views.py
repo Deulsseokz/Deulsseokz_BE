@@ -2,7 +2,7 @@ import logging
 from rest_framework.views import APIView
 from rest_framework import status
 from .models import User, Photo, Album
-from .query_serializers import PlaceAlbumSerializer
+from .query_serializers import PlaceAlbumSerializer, FavoritePhotoSerializer
 from utils.response_wrapper import api_response
 logger = logging.getLogger(__name__)
 
@@ -39,4 +39,27 @@ class PlaceAlbumPictureView(APIView):
         query_serializer.is_valid(raise_exception=True)
         place = query_serializer.validated_data['place']
 
-        
+# 대표 사진 설정
+class FavoritePhotoView(APIView):
+    def patch(self, request):
+        query_serializer = FavoritePhotoSerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+        photo = query_serializer.validated_data['photo']
+
+        try:
+            photo = Photo.objects.get(photoId = photo)
+        except Photo.DoesNotExist:
+            api_response(
+                code="PHOTO_INVALID",
+                message="존재하지 않는 사진입니다."
+            )
+
+        Album.objects.update(
+            representativePhotoId = photo
+        )
+
+        return api_response(
+            result=f"{photo}가 대표사진으로 설정되었습니다."
+        )
+
+
