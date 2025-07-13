@@ -1,5 +1,6 @@
 import requests
 import logging
+import re
 from rest_framework.views import APIView
 from rest_framework import status
 from .models import User, Challenge, ChallengeAttempt, ChallengeAttemptUser
@@ -27,6 +28,15 @@ class ChallengeInfoView(APIView):
             )
         response_serializer = ChallengeResponseSerializer(challenge)
         return api_response(result=response_serializer.data)
+    
+# 장소-챌린지 조건 추출
+def extract_conditions(*conditions):
+    extracted = [ ]
+    for cond in conditions:
+        if cond:
+            matches = re.findall(r'\[(.*?)\]', cond)
+            extracted.extend(matches)
+    return extracted
 
 # 챌린지 도전
 class ChallengeAttempt(APIView):
@@ -64,7 +74,7 @@ class ChallengeAttempt(APIView):
         try:
             response = requests.post(fastapi_url, files=files)
             response.raise_for_status()
-            analysis_result = response.json()
+            pose_result = response.json()
         except requests.exceptions.RequestException as e:
             return api_response(
                 code="POSE_ANALYSIS_FAILED",
@@ -74,7 +84,7 @@ class ChallengeAttempt(APIView):
                 result={"error": str(e)}
             )
         
-        logger.info(f"[POSE ANALYSIS RESULT] {analysis_result}")
+        logger.info(f"[POSE ANALYSIS RESULT] {pose_result}")
 
         # 해당하는 장소의 조건 중 장소에 관련된 것과 포즈 분석한 결과를 비교 
         # 조건 중에 find 함수 사용해 특정 단어 포함되어 있는 지 확인 해 추출 
@@ -104,6 +114,20 @@ class ChallengeAttempt(APIView):
                 
         logger.info(f"[LOCATION ANALYSIS RESULT] {location_result}")
 
+        # 조건 추출 후 검사
+        pose_result = pose_result.get("pose", "")
+        location_result = location_result.get("location", "")
+        required_conditions = extract_conditions(
+            challenge.condition1, challenge.condition2 # , challenge.condition3
+        )
+
+        is_success = True
+        for cond in required_conditions:
+            if cond not in pose_result and cond not in location_result:
+                logger.warning(f"[CONDITION FAIL] '{cond}'이 pose/location 결과에 없음")
+                is_success = False
+                break
+
         # DB 저장
         # 1. ChallengeAttempt
         attempt_instance = ChallengeAttempt.objects.create(
@@ -112,7 +136,7 @@ class ChallengeAttempt(APIView):
             attemptDate= attemptDate,
             attemptImage= request.build_absolute_url(attemptImage.url),
             resultComment= None, # 추후 수정
-            attemptResult = analysis_result.get("pose")
+            attemptResult = is_success
         )
         serializer = ChallengeAttemptSerializer(attempt_instance)
 
@@ -135,10 +159,15 @@ class ChallengeAttempt(APIView):
                 userId=friend_user
             )
 
-
+        # 응답 반환
         return api_response(
             # result={
             #     "pose_analysis": analysis_result,
             #     "location_prediction": location_result
             # }
+            result={
+                "attemptResult": is_success,
+                # "resultComment": "text",
+                "attempt": 
+            }
         )
