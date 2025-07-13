@@ -5,7 +5,8 @@ from places.models import Place
 # Create your models here.
 class Photo(models.Model):
     photoId = models.BigAutoField(primary_key=True)
-    albumId = models.ForeignKey(
+    # albumId -> album으로 수정
+    album = models.ForeignKey(
         'Album',
         on_delete=models.CASCADE,
         db_column='albumId',
