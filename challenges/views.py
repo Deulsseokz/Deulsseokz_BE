@@ -2,7 +2,7 @@ import requests
 import logging
 from rest_framework.views import APIView
 from rest_framework import status
-from .models import Challenge, ChallengeAttempt
+from .models import User, Challenge, ChallengeAttempt, ChallengeAttemptUser
 from .serializers import ChallengeResponseSerializer, ChallengeAttemptSerializer
 from .query_serializers import ChallengeQuerySerializer
 from utils.response_wrapper import api_response
@@ -41,6 +41,17 @@ class ChallengeAttempt(APIView):
                 code="INVALID_INPUT",
                 message="place, attemptDate, attemptImage는 필수입니다.",
                 status_code=status.HTTP_400_BAD_REQUEST,
+                is_success=False
+            )
+        
+        # 장소에 속한 챌린지 가져오기
+        try:
+            challenge = Challenge.objects.select_related('placeId').get(placeId__placeName = place)
+        except Challenge.DoesNotExist:
+            return api_response(
+                code="CHALLENGE_NOT_FOUND",
+                message=f"장소 '{place}'에 해당하는 챌린지가 없습니다.",
+                status_code=status.HTTP_404_NOT_FOUND,
                 is_success=False
             )
 
@@ -90,17 +101,40 @@ class ChallengeAttempt(APIView):
                 is_success=False,
                 result={"error": str(e)}
             )
+                
+        logger.info(f"[LOCATION ANALYSIS RESULT] {location_result}")
 
         # DB 저장
-        # attempt_instance = ChallengeAttempt.objects.create(
-        #     result=analysis_result.get("pose"),
-        #     resultComment=None,
-        #     attemptResult=True,
-        #     attempt=attemptImage
-        # )
-        # serializer = ChallengeAttemptSerializer(attempt_instance)
+        # 1. ChallengeAttempt
+        attempt_instance = ChallengeAttempt.objects.create(
+            challengeId= challenge, # 장소에서 연결
+            userId= User.objects.get(id=1), # 유저 기본 설정(request.user)
+            attemptDate= attemptDate,
+            attemptImage= request.build_absolute_url(attemptImage.url),
+            resultComment= None, # 추후 수정
+            attemptResult = analysis_result.get("pose")
+        )
+        serializer = ChallengeAttemptSerializer(attempt_instance)
 
-        logger.info(f"[LOCATION ANALYSIS RESULT] {location_result}")
+        #2. ChallengeAttemptUser 
+        friends_ids = friends if friends else [ ]
+        for friend_id in friends_ids:
+            # try:
+            #     friend_user = User.objects.get(id=friend_id)
+            #     ChallengeAttemptUser.obejcts.create(
+            #         challengeAttemptId=attempt_instance,
+            #         userId=friend_user
+            #     )
+            # except User.DoesNotExist:
+            #     logger.warning(f"[WARNING] 친구 ID {friend_id}에 해당하는 유저 존재하지 않습니다.")
+
+            # 토큰 적용 전 예외 처리 제외
+            friend_user = User.objects.get(id=friend_id)
+            ChallengeAttemptUser.obejcts.create(
+                challengeAttemptId=attempt_instance,
+                userId=friend_user
+            )
+
 
         return api_response(
             # result={
