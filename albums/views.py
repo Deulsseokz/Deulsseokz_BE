@@ -63,3 +63,27 @@ class FavoritePhotoView(APIView):
         )
 
 
+# 대표 사진 설정
+class FavoritePhotoView(APIView):
+    def patch(self, request):
+        query_serializer = FavoritePhotoSerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+        photoId = query_serializer.validated_data['photoId']
+
+        try:
+            representPhoto = Photo.objects.get(photoId = photoId)
+        except Photo.DoesNotExist:
+            return api_response(
+                code="PHOTO_INVALID",
+                message="존재하지 않는 사진입니다."
+            )
+
+        album = representPhoto.album # photo에서 외래키 연결되어있음
+        album.representativePhotoId = representPhoto
+        album.save()
+
+        return api_response(
+            result=f"{representPhoto} 이/가 대표사진으로 설정되었습니다."
+        )
+
+
