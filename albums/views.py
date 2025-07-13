@@ -2,6 +2,7 @@ import logging
 from rest_framework.views import APIView
 from rest_framework import status
 from .models import User, Photo, Album
+from .query_serializers import PlaceAlbumSerializer
 from utils.response_wrapper import api_response
 logger = logging.getLogger(__name__)
 
