@@ -1,6 +1,7 @@
 import requests
 import logging
 import re
+import json
 from rest_framework.views import APIView
 from rest_framework import status
 from .models import User, Challenge, ChallengeAttempt, ChallengeAttemptUser
@@ -31,20 +32,25 @@ class ChallengeInfoView(APIView):
     
 # 장소-챌린지 조건 추출
 def extract_conditions(*conditions):
-    extracted = [ ]
+    extracted = []
     for cond in conditions:
-        if cond:
-            matches = re.findall(r'\[(.*?)\]', cond)
-            extracted.extend(matches)
+        matches = re.findall(r'\[(.*?)\]', cond)
+        extracted.extend(matches)
     return extracted
 
 # 챌린지 도전
-class ChallengeAttempt(APIView):
+class ChallengeAttemptView(APIView):
     def post(self, request):
         place = request.data.get('place')
-        friends = request.data.get('friends')
+        friends_list = request.data.get('friends', []) # 리스트 형식 지정
         attemptDate = request.data.get('attemptDate')
         attemptImage = request.FILES.get('attemptImage')  # 파일은 FILES에서 가져옴!
+
+        # 친구 목록 리스트 파싱
+        try:
+            friends = json.loads(friends_list)
+        except json.JSONDecodeError:
+            return api_response({"error": "Invalid format for friends"}, status=400)
 
         if not all([place, attemptDate, attemptImage]):
             return api_response(
@@ -115,15 +121,26 @@ class ChallengeAttempt(APIView):
         logger.info(f"[LOCATION ANALYSIS RESULT] {location_result}")
 
         # 조건 추출 후 검사
-        pose_result = pose_result.get("pose", "")
+        pose_result_data = pose_result.get("results", [ ])
+        pose_result_str = " "
+        if pose_result_data and isinstance(pose_result_data, list):
+            pose_result_str = pose_result_data[0].get("pose", "")
+
         location_result = location_result.get("location", "")
-        required_conditions = extract_conditions(
-            challenge.condition1, challenge.condition2 # , challenge.condition3
-        )
+
+        logger.debug(f"[DEBUG] pose_result: {pose_result_str} (type: {type(pose_result_str)})")
+        logger.debug(f"[DEBUG] location_result: {location_result} (type: {type(location_result)})")
+
+        # 소문자로 변환
+        pose_result_str = pose_result_str.lower()
+        location_result = location_result.lower()
+
+        # condition1, condition2에서 필요한 키워드들 추출
+        required_conditions = [cond.lower() for cond in extract_conditions(challenge.condition1, challenge.condition2)]
 
         is_success = True
         for cond in required_conditions:
-            if cond not in pose_result and cond not in location_result:
+            if cond not in pose_result_str and cond not in location_result:
                 logger.warning(f"[CONDITION FAIL] '{cond}'이 pose/location 결과에 없음")
                 is_success = False
                 break
@@ -132,9 +149,10 @@ class ChallengeAttempt(APIView):
         # 1. ChallengeAttempt
         attempt_instance = ChallengeAttempt.objects.create(
             challengeId= challenge, # 장소에서 연결
-            userId= User.objects.get(id=1), # 유저 기본 설정(request.user)
+            userId= User.objects.get(userId=1), # 유저 기본 설정(request.user)
             attemptDate= attemptDate,
-            attemptImage= request.build_absolute_url(attemptImage.url),
+            # attemptImage= request.build_absolute_url(attemptImage.url),
+            attemptImage = attemptImage,
             resultComment= None, # 추후 수정
             attemptResult = is_success
         )
@@ -145,7 +163,7 @@ class ChallengeAttempt(APIView):
         for friend_id in friends_ids:
             # try:
             #     friend_user = User.objects.get(id=friend_id)
-            #     ChallengeAttemptUser.obejcts.create(
+            #     ChallengeAttemptUser.objects.create(
             #         challengeAttemptId=attempt_instance,
             #         userId=friend_user
             #     )
@@ -153,11 +171,20 @@ class ChallengeAttempt(APIView):
             #     logger.warning(f"[WARNING] 친구 ID {friend_id}에 해당하는 유저 존재하지 않습니다.")
 
             # 토큰 적용 전 예외 처리 제외
-            friend_user = User.objects.get(id=friend_id)
-            ChallengeAttemptUser.obejcts.create(
+            friend_user = User.objects.get(userId=friend_id)
+            ChallengeAttemptUser.objects.create(
                 challengeAttemptId=attempt_instance,
                 userId=friend_user
             )
+
+        # 유저 도전 횟수 카운트
+        attempt_count = ChallengeAttempt.objects.filter(
+            userId = User.objects.get(userId=1), # 유저 기본 설정(request.user)
+            challengeId__placeId = challenge.placeId
+        ).count()
+
+        # 이번 도전은 몇 번째인지 (기존 도전 수 + 1)
+        current_attempt = attempt_count + 1
 
         # 응답 반환
         return api_response(
@@ -168,6 +195,6 @@ class ChallengeAttempt(APIView):
             result={
                 "attemptResult": is_success,
                 # "resultComment": "text",
-                "attempt": 
+                "attempt": current_attempt
             }
         )
