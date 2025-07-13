@@ -31,3 +31,12 @@ class AlbumListView(APIView):
         return api_response(
             result=album_lists_name
         )
+    
+# 장소별 앨범 사진 조회
+class PlaceAlbumPictureView(APIView):
+    def get(self, request):
+        query_serializer = PlaceAlbumSerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+        place = query_serializer.validated_data['place']
+
+        
