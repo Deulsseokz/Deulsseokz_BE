@@ -20,7 +20,7 @@ class Photo(models.Model):
         db_table = 'Photo'
 
     def __str__(self):
-        return f"{self.albumId} 사진 {self.photoId}"
+        return f"photoId: {self.photoId}"
 
 
 class Album(models.Model):
@@ -51,4 +51,4 @@ class Album(models.Model):
         db_table = 'Album'
 
     def __str__(self):
-        return f"앨범 {self.albumId} - {self.userId}"
+        return f"albumId: {self.albumId}"

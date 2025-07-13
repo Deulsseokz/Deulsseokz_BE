@@ -2,8 +2,7 @@ import logging
 from rest_framework.views import APIView
 from rest_framework import status
 from .models import User, Photo, Album
-from .query_serializers import PlaceAlbumSerializer
-from .serializers import FavoritePhotoSerializer
+from .query_serializers import PlaceAlbumSerializer, FavoritePhotoSerializer
 from utils.response_wrapper import api_response
 logger = logging.getLogger(__name__)
 
@@ -50,7 +49,7 @@ class FavoritePhotoView(APIView):
         try:
             representPhoto = Photo.objects.get(photoId = photoId)
         except Photo.DoesNotExist:
-            api_response(
+            return api_response(
                 code="PHOTO_INVALID",
                 message="존재하지 않는 사진입니다."
             )
@@ -60,7 +59,7 @@ class FavoritePhotoView(APIView):
         album.save()
 
         return api_response(
-            result=f"{representPhoto}가 대표사진으로 설정되었습니다."
+            result=f"{representPhoto} 이/가 대표사진으로 설정되었습니다."
         )
 
 
