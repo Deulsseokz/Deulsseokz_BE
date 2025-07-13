@@ -15,8 +15,9 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.urls import path
-from .views import PlaceAreaSearchView
+from .views import PlaceAreaSearchView, FavoritePlacePostView
 
 urlpatterns = [
     path('search-area', PlaceAreaSearchView.as_view()),
+    path('favorite', FavoritePlacePostView.as_view()),
 ]

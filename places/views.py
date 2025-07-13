@@ -1,8 +1,8 @@
 import logging
 from rest_framework.views import APIView
 from rest_framework import status
-from .models import User, Place
-from .query_serializers import PlaceAreaSearchQuerySerializer
+from .models import User, Place, FavoritePlace
+from .query_serializers import PlaceAreaSearchQuerySerializer, PlaceQuerySerializer
 from utils.response_wrapper import api_response
 logger = logging.getLogger(__name__)
 
@@ -25,4 +25,28 @@ class PlaceAreaSearchView(APIView):
         
         return api_response(
             result={'place': list(places)}
+        )
+
+# 관심 장소 등록
+class FavoritePlacePostView(APIView):
+    def post(self, request):
+        query_serializer = PlaceQuerySerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+        place = query_serializer.validated_data['place']
+
+        try:
+            place = Place.objects.get(placeName = place)
+        except Place.DoesNotExist:
+            api_response(
+                code="LOCATION_INVALID",
+                message="장소에 대한 정보가 존재하지 않습니다."
+            )
+
+        FavoritePlace.objects.create(
+            userId = User.objects.get(userId=1),
+            placeId = place
+        )
+
+        return api_response(
+            result=f"{place}가 관심장소에 등록되었습니다."
         )
