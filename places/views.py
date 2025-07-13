@@ -27,8 +27,8 @@ class PlaceAreaSearchView(APIView):
             result={'place': list(places)}
         )
 
-# 관심 장소 등록
-class FavoritePlacePostView(APIView):
+class FavoritePlaceView(APIView):
+    # 관심 장소 등록
     def post(self, request):
         query_serializer = PlaceQuerySerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
@@ -49,4 +49,33 @@ class FavoritePlacePostView(APIView):
 
         return api_response(
             result=f"{place}가 관심장소에 등록되었습니다."
+        )
+
+    # 관심 장소 조회
+    def get(self, request):
+        try:
+            user = User.objects.get(userId=2)
+        except User.DoesNotExist:
+            return api_response(
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+        
+        favorite_places = FavoritePlace.objects.filter(userId=user).select_related('placeId')
+
+        if not favorite_places.exists():
+            return api_response(
+                is_success=True,
+                code='COMMON200',
+                message='관심 장소가 없습니다.',
+                result={"count": 0, "place":[]},
+                status_code=status.HTTP_200_OK
+            )
+        
+        place_names = [fp.placeId.placeName for fp in favorite_places]
+
+        return api_response(
+            result={
+                "count": len(place_names),
+                "places": place_names
+            }
         )
