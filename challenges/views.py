@@ -10,6 +10,39 @@ from .query_serializers import ChallengeQuerySerializer
 from utils.response_wrapper import api_response
 logger = logging.getLogger(__name__)
 
+# 전체 챌린지 목록 조회
+class ChallengeListView(APIView):
+    def get(self, request):
+        try: 
+            user = User.objects.get(userId=1)
+        except User.DoesNotExist:
+            return api_response(
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+        
+        result = []
+        challenges = Challenge.objects.all()
+
+        for challenge in challenges:
+            # 해당 유저의 성공한 도전 이력이 있는지 확인
+            attempt = ChallengeAttempt.objects.filter(
+                userId=user,
+                challengeId=challenge,
+                attemptResult=True
+            ).order_by('-attemptDate').first()
+
+            result.append({
+                "challengeId": challenge.challengeId,
+                "place": challenge.placeId.placeName,
+                "isChallenged": attempt is not None,
+                "challengePhoto": attempt.attemptImage if attempt else None,
+                "location": challenge.placeId.location
+            })
+
+        return api_response(
+            result=result
+        )
+
 # 챌린지 정보 조회
 class ChallengeInfoView(APIView):
     def get(self, request):
