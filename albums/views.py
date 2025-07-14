@@ -17,9 +17,9 @@ class AlbumListView(APIView):
                 status_code=status.HTTP_404_NOT_FOUND
             )
         
-        album_lists = Album.objects.filter(userId=user).select_related('placeId')
+        albums = Album.objects.filter(userId=user).select_related('placeId', 'representativePhotoId').prefetch_related('photos')
 
-        if not album_lists.exists():
+        if not albums.exists():
             return api_response(
                 is_success=True,
                 code='COMMON200',
@@ -27,10 +27,18 @@ class AlbumListView(APIView):
                 status_code=status.HTTP_200_OK
             )
         
-        album_lists_name = [al.placeId.placeName for al in album_lists]
+        result = []
+        for album in albums:
+            photo = album.representativePhotoId
+            photo_url = photo.photoUrl if photo else None
+
+            result.append({
+                "place": album.placeId.placeName,
+                "representPhoto": photo_url
+            })
 
         return api_response(
-            result=album_lists_name
+            result=result
         )
     
 # 장소별 앨범 사진 조회
