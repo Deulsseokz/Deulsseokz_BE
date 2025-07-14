@@ -2,6 +2,7 @@ import logging
 from rest_framework.views import APIView
 from rest_framework import status
 from .models import User, Place, FavoritePlace
+from challenges.models import ChallengeAttempt, ChallengeAttemptUser
 from .query_serializers import PlaceAreaSearchQuerySerializer, PlaceQuerySerializer
 from utils.response_wrapper import api_response
 logger = logging.getLogger(__name__)
@@ -57,25 +58,27 @@ class FavoritePlaceView(APIView):
             user = User.objects.get(userId=1)
         except User.DoesNotExist:
             return api_response(
-                status_code=status.HTTP_404_NOT_FOUND
+                status_code=status.HTTP_404_NOT_FOUND,
+                message="유저를 찾을 수 없습니다.",
+                is_success=False
             )
-        
-        favorite_places = FavoritePlace.objects.filter(userId=user).select_related('placeId')
 
-        if not favorite_places.exists():
-            return api_response(
-                is_success=True,
-                code='COMMON200',
-                message='관심 장소가 없습니다.',
-                result={"count": 0, "place":[]},
-                status_code=status.HTTP_200_OK
-            )
+        attempts = ChallengeAttempt.objects.filter(userId=user).select_related('challengeId', 'challengeId__placeId')
         
-        place_names = [fp.placeId.placeName for fp in favorite_places]
+        response_list = []
+        for attempt in attempts:
+            friends = ChallengeAttemptUser.objects.filter(challengeAttemptId=attempt)
+            friendIds = [f.userId.userId for f in friends]
+            friendImages = [f.userId.profileImage for f in friends]
+
+            response_list.append({
+                "place": attempt.challengeId.placeId.placeName,
+                "content": attempt.challengeId.content,
+                "friends": friendIds if friendIds else None,
+                "friendsProfileImage": friendImages if friendImages else None
+            })
 
         return api_response(
-            result={
-                "count": len(place_names),
-                "places": place_names
-            }
+            count=len(response_list),
+            result=response_list
         )

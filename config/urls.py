@@ -42,5 +42,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('challenge/', include('challenges.urls')),
     path('place/', include('places.urls')),
-    path('', include('albums.urls')),
+    path('', include('albums.urls')), # 앨범 및 사진은 내부에서 처리 (다른 것은 이렇게 처리하면 안 됨)
 ]

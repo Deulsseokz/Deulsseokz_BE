@@ -2,4 +2,5 @@
 from rest_framework import serializers
 
 class ChallengeQuerySerializer(serializers.Serializer):
-    place = serializers.CharField(required = True)
+    place = serializers.CharField(required=False)
+    placeId = serializers.IntegerField(required=False)
