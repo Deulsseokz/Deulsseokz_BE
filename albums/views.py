@@ -40,6 +40,44 @@ class PlaceAlbumPictureView(APIView):
         query_serializer.is_valid(raise_exception=True)
         place = query_serializer.validated_data['place']
 
+        user = User.objects.get(userId=1)
+        try:
+            place = Place.objects.get(placeName=place)
+        except Place.DoesNotExist:
+            return api_response(
+                code="PLACE404",
+                message="해당 장소를 찾을 수 없습니다.",
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        try: 
+            album = Album.objects.get(userId=1, placeId=place)
+        except Album.DoesNotExist:
+            return api_response(
+                code="ALBUM404",
+                message="앨범이 존재하지 않습니다.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+        
+        # 사진 조회
+        photos = Photo.objects.filter(album=album)
+        represent_photo = album.representativePhotoId
+
+        result = []
+        for photo in photos:
+            result.append({
+                "url": photo.photoUrl if photo.photoUrl else None,
+                "feelings": photo.feelings,
+                "weather": photo.weather,
+                "photoContent": photo.photoContent,
+                "date": photo.date,
+                "isFavorite": (represent_photo == photo)
+        })
+
+        return api_response(
+            result=result
+        )
+
 class PhotoView(APIView):
     # 사진 (설명) 추가
     def post(self, request):

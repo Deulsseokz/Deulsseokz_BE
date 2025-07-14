@@ -19,7 +19,7 @@ from .views import AlbumListView, PlaceAlbumPictureView,PhotoView, FavoritePhoto
 
 urlpatterns = [
     path('album/', AlbumListView.as_view()),
-    # path('/represent', PlaceAlbumPictureView.as_view()),
+    path('album/photos', PlaceAlbumPictureView.as_view()),
     path('photo/', PhotoView.as_view()),
     path('photo/represent/', FavoritePhotoView.as_view()),
 ]
