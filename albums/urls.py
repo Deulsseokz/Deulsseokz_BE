@@ -18,8 +18,8 @@ from django.urls import path
 from .views import AlbumListView, PlaceAlbumPictureView,PhotoView, FavoritePhotoView
 
 urlpatterns = [
-    path('', AlbumListView.as_view()),
+    path('/', AlbumListView.as_view()),
     # path('/represent', PlaceAlbumPictureView.as_view()),
-    path('', PhotoView.as_view()),
-    path('represent', FavoritePhotoView.as_view()),
+    path('/delete', PhotoView.as_view()),
+    path('/represent', FavoritePhotoView.as_view()),
 ]
