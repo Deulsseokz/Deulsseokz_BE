@@ -5,7 +5,8 @@ from places.models import Place
 # Create your models here.
 class Photo(models.Model):
     photoId = models.BigAutoField(primary_key=True)
-    albumId = models.ForeignKey(
+    # albumId -> album으로 수정
+    album = models.ForeignKey(
         'Album',
         on_delete=models.CASCADE,
         db_column='albumId',
@@ -15,12 +16,13 @@ class Photo(models.Model):
     weather = models.CharField(max_length=255, null=True, blank=True)
     photoContent = models.CharField(max_length=500, null=True, blank=True)
     date = models.DateTimeField(null=True, blank=True)
+    photoUrl = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
         db_table = 'Photo'
 
     def __str__(self):
-        return f"{self.albumId} 사진 {self.photoId}"
+        return f"photoId: {self.photoId}"
 
 
 class Album(models.Model):
@@ -51,4 +53,4 @@ class Album(models.Model):
         db_table = 'Album'
 
     def __str__(self):
-        return f"앨범 {self.albumId} - {self.userId}"
+        return f"albumId: {self.albumId}"

@@ -18,6 +18,6 @@ from django.urls import path
 from .views import PlaceAreaSearchView, FavoritePlaceView
 
 urlpatterns = [
-    path('search-area', PlaceAreaSearchView.as_view()),
-    path('favorite', FavoritePlaceView.as_view()),
+    path('search-area/', PlaceAreaSearchView.as_view()),
+    path('favorite/', FavoritePlaceView.as_view()),
 ]

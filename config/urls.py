@@ -42,4 +42,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('challenge/', include('challenges.urls')),
     path('place/', include('places.urls')),
+    path('', include('albums.urls')),
 ]
