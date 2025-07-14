@@ -18,6 +18,6 @@ from django.urls import path
 from .views import ChallengeInfoView, ChallengeAttemptView
 
 urlpatterns = [
-    path('/info', ChallengeInfoView.as_view()),
-    path('/', ChallengeAttemptView.as_view()),
+    path('info/', ChallengeInfoView.as_view()),
+    path('', ChallengeAttemptView.as_view()),
 ]
