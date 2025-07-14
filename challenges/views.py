@@ -98,7 +98,7 @@ class ChallengeAttemptView(APIView):
         # === (장소 판별 호출) ===
         fastapi_location_url = "http://127.0.0.1:8000/analyze/location"
         location_payload = {
-            'candidates': place  # place가 string이라면 list로 감싸줍니다.
+            'candidates': place  # place가 string이라면 list로 감싸기
         }
 
         # attemptImage는 .read() 했기 때문에 다시 읽어야 함

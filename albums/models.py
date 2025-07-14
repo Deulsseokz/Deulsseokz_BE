@@ -16,6 +16,7 @@ class Photo(models.Model):
     weather = models.CharField(max_length=255, null=True, blank=True)
     photoContent = models.CharField(max_length=500, null=True, blank=True)
     date = models.DateTimeField(null=True, blank=True)
+    photoUrl = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
         db_table = 'Photo'
