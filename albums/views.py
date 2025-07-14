@@ -43,9 +43,19 @@ class PlaceAlbumPictureView(APIView):
 class PhotoView(APIView):
     # 사진 삭제 
     def delete(self, request):
-        query_serializer = 
+        query_serializer = PhotoSerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+        photoId = query_serializer.validated_data('photoId')
 
+        try:
+            deletePhoto = Photo.objects.get(photoId = photoId)
+        except Photo.DoesNotExist:
+            return api_response(
+                code="PHOTO_INVALID",
+                message="존재하지 않는 사진입니다."
+            )
 
+        deletePhoto.delete()
 
 # 대표 사진 설정
 class FavoritePhotoView(APIView):
