@@ -108,6 +108,34 @@ class PhotoView(APIView):
             result="사진과 설명이 성공적으로 추가되었습니다.",
             status_code=status.HTTP_200_OK
         )
+    
+    # 사진 (설명) 수정
+    def patch(self, request):
+        user = User.objects.get(userId=1)
+        photoId = request.data.get('photoId')
+        # 사진 조회
+        try:
+            photo = Photo.objects.get(photoId=photoId, album__userId=user)
+        except Photo.DoesNotExist:
+            return api_response(
+                isSuccess=False,
+                code="PHOTO404",
+                message="해당 사진을 찾을 수 없습니다.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        # null이 아닌 필드만 업데이트
+        update_fields = ['feelings', 'weather', 'photoContent', 'date']
+        for field in update_fields:
+            if field in request.data and request.data[field] is not None:
+                setattr(photo, field, request.data[field])
+
+        photo.save()
+
+        return api_response(
+            result="사진 정보가 성공적으로 수정되었습니다.",
+            status_code=status.HTTP_200_OK
+        )
 
     # 사진 삭제 
     def delete(self, request):
