@@ -49,19 +49,42 @@ class ChallengeInfoView(APIView):
         query_serializer = ChallengeQuerySerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
 
-        place_name = query_serializer.validated_data['place']
+        validated_data = query_serializer.validated_data
+        placeName = validated_data.get('place', None)
+        placeId = validated_data.get('placeId', None)
 
-        try:
-            challenge = Challenge.objects.select_related('placeId').get(placeId__placeName=place_name)
-        except Challenge.DoesNotExist:
+        if not placeName and not placeId:
             return api_response(
-                code="CHALLENGE_NOT_FOUND",
-                message="해당 장소에 대한 챌린지 정보가 없습니다.",
-                status_code=status.HTTP_404_NOT_FOUND,
-                is_success=False
+                code="INVALID_QUERY",
+                message="place 또는 placeId 중 하나는 필수입니다.",
+                status_code=status.HTTP_400_BAD_REQUEST
             )
-        response_serializer = ChallengeResponseSerializer(challenge)
-        return api_response(result=response_serializer.data)
+
+        # Case 1: placeId 기반 단일 조회
+        if placeId:
+            try:
+                challenge = Challenge.objects.select_related('placeId').get(placeId__placeId=placeId)
+                serializer = ChallengeResponseSerializer(challenge)
+                return api_response(result=serializer.data)
+            except Challenge.DoesNotExist:
+                return api_response(
+                    code="CHALLENGE_NOT_FOUND",
+                    message="해당 ID에 대한 챌린지 정보가 없습니다.",
+                    status_code=status.HTTP_404_NOT_FOUND
+                )
+
+        # Case 2: place 문자열 포함 조회 (다중)
+        else:
+            challenges = Challenge.objects.select_related('placeId').filter(placeId__placeName__icontains=placeName)
+            if not challenges.exists():
+                return api_response(
+                    code="CHALLENGE_NOT_FOUND",
+                    message=f"'{placeName}'을 포함하는 장소에 대한 챌린지가 없습니다.",
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    is_success=False
+                )
+            serializer = ChallengeResponseSerializer(challenges, many=True)
+            return api_response(result=serializer.data)
     
 # 장소-챌린지 조건 추출
 def extract_conditions(*conditions):
