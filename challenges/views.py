@@ -5,6 +5,7 @@ import json
 from rest_framework.views import APIView
 from rest_framework import status
 from .models import User, Challenge, ChallengeAttempt, ChallengeAttemptUser
+from places.models import FavoritePlace
 from .serializers import ChallengeResponseSerializer, ChallengeAttemptSerializer
 from .query_serializers import ChallengeQuerySerializer
 from utils.response_wrapper import api_response
@@ -60,31 +61,53 @@ class ChallengeInfoView(APIView):
                 status_code=status.HTTP_400_BAD_REQUEST
             )
 
+        user = User.objects.get(userId=1)
+
         # Case 1: placeId 기반 단일 조회
         if placeId:
-            try:
-                challenge = Challenge.objects.select_related('placeId').get(placeId__placeId=placeId)
-                serializer = ChallengeResponseSerializer(challenge)
-                return api_response(result=serializer.data)
-            except Challenge.DoesNotExist:
+            challenges = Challenge.objects.select_related('placeId').filter(placeId__placeId=placeId)
+
+            if not challenges.exists():
                 return api_response(
                     code="CHALLENGE_NOT_FOUND",
                     message="해당 ID에 대한 챌린지 정보가 없습니다.",
                     status_code=status.HTTP_404_NOT_FOUND
                 )
 
-        # Case 2: place 문자열 포함 조회 (다중)
+            favorite_place_ids = set(
+                FavoritePlace.objects.filter(userId=user).values_list('placeId', flat=True)
+            )
+
+            result = []
+            for challenge in challenges:
+                is_favorite = challenge.placeId.placeId in favorite_place_ids
+                serializer = ChallengeResponseSerializer(challenge, context={'is_favorite': is_favorite})
+                result.append(serializer.data)
+
+            return api_response(result=result)
+
+        # Case 2: placeName 기반 다중 조회
         else:
             challenges = Challenge.objects.select_related('placeId').filter(placeId__placeName__icontains=placeName)
+
             if not challenges.exists():
                 return api_response(
                     code="CHALLENGE_NOT_FOUND",
                     message=f"'{placeName}'을 포함하는 장소에 대한 챌린지가 없습니다.",
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    is_success=False
+                    status_code=status.HTTP_404_NOT_FOUND
                 )
-            serializer = ChallengeResponseSerializer(challenges, many=True)
-            return api_response(result=serializer.data)
+
+            favorite_place_ids = set(
+                FavoritePlace.objects.filter(userId=user).values_list('placeId', flat=True)
+            )
+
+            result = []
+            for challenge in challenges:
+                is_favorite = challenge.placeId.placeId in favorite_place_ids
+                serializer = ChallengeResponseSerializer(challenge, context={'is_favorite': is_favorite})
+                result.append(serializer.data)
+
+            return api_response(result=result)
     
 # 장소-챌린지 조건 추출
 def extract_conditions(*conditions):
