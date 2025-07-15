@@ -4,6 +4,7 @@ from rest_framework import status
 from .models import User, Place, FavoritePlace
 from challenges.models import ChallengeAttempt, ChallengeAttemptUser
 from .query_serializers import PlaceAreaSearchQuerySerializer, PlaceQuerySerializer
+from .serializers import favoritePlaceSerializer
 from utils.response_wrapper import api_response
 logger = logging.getLogger(__name__)
 
@@ -31,26 +32,37 @@ class PlaceAreaSearchView(APIView):
 class FavoritePlaceView(APIView):
     # 관심 장소 등록
     def post(self, request):
-        query_serializer = PlaceQuerySerializer(data=request.query_params)
-        query_serializer.is_valid(raise_exception=True)
-        place = query_serializer.validated_data['place']
+        serializer = favoritePlaceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
+
+        place = validated['place']
+        isFavorite = validated['isFavorite']
 
         try:
             place = Place.objects.get(placeName = place)
         except Place.DoesNotExist:
-            api_response(
+            return api_response(
                 code="LOCATION_INVALID",
                 message="장소에 대한 정보가 존재하지 않습니다."
             )
+        
+        user = User.objects.get(userId = 1)
 
-        FavoritePlace.objects.create(
-            userId = User.objects.get(userId=1),
-            placeId = place
-        )
-
-        return api_response(
-            result=f"{place}가 관심장소에 등록되었습니다."
-        )
+        if isFavorite is True:
+            if not FavoritePlace.objects.filter(userId=user, placeId=place).exists():
+                FavoritePlace.objects.create(userId=user, placeId=place)
+            return api_response(
+                result=f"{place}가 관심장소에 등록되었습니다."
+            )
+        else:
+            FavoritePlace.objects.filter(
+                userId=User.objects.get(userId=1),
+                placeId=place
+            ).delete()
+            return api_response(
+                result=f"{place}가 관심장소에 삭제되었습니다."
+            )
 
     # 관심 장소 조회
     def get(self, request):
@@ -63,20 +75,37 @@ class FavoritePlaceView(APIView):
                 is_success=False
             )
 
-        attempts = ChallengeAttempt.objects.filter(userId=user).select_related('challengeId', 'challengeId__placeId')
-        
+        favorite_places = FavoritePlace.objects.filter(userId=user).select_related('placeId')
         response_list = []
-        for attempt in attempts:
-            friends = ChallengeAttemptUser.objects.filter(challengeAttemptId=attempt)
-            friendIds = [f.userId.userId for f in friends]
-            friendImages = [f.userId.profileImage for f in friends]
 
-            response_list.append({
-                "place": attempt.challengeId.placeId.placeName,
-                "content": attempt.challengeId.content,
-                "friends": friendIds if friendIds else None,
-                "friendsProfileImage": friendImages if friendImages else None
-            })
+        for favorite in favorite_places:
+            place = favorite.placeId
+
+            # 해당 장소에 대한 가장 최근 도전 1개
+            latest_attempt = ChallengeAttempt.objects.filter(
+                userId=user,
+                challengeId__placeId=place
+            ).select_related('challengeId', 'challengeId__placeId').order_by('-attemptDate').first()
+
+            if latest_attempt:
+                friends = ChallengeAttemptUser.objects.filter(challengeAttemptId=latest_attempt)
+                friend_ids = [f.userId.userId for f in friends]
+                friend_images = [f.userId.profileImage for f in friends]
+
+                response_list.append({
+                    "place": place.placeName,
+                    "content": latest_attempt.challengeId.content,
+                    "friends": friend_ids if friend_ids else None,
+                    "friendsProfileImage": friend_images if friend_images else None
+                })
+            else:
+                # 도전 기록이 없을 경우 기본 정보만 반환
+                response_list.append({
+                    "place": place.placeName,
+                    "content": None,
+                    "friends": None,
+                    "friendsProfileImage": None
+                })
 
         return api_response(
             count=len(response_list),
