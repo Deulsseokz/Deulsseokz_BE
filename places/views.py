@@ -94,6 +94,7 @@ class FavoritePlaceView(APIView):
 
                 response_list.append({
                     "place": place.placeName,
+                    "placeImage": place.placeImage,
                     "content": latest_attempt.challengeId.content,
                     "friends": friend_ids if friend_ids else None,
                     "friendsProfileImage": friend_images if friend_images else None
@@ -102,6 +103,7 @@ class FavoritePlaceView(APIView):
                 # 도전 기록이 없을 경우 기본 정보만 반환
                 response_list.append({
                     "place": place.placeName,
+                    "placeImage": place.placeImage,
                     "content": None,
                     "friends": None,
                     "friendsProfileImage": None
