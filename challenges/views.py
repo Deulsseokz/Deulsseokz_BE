@@ -1,3 +1,5 @@
+from django.core.files.base import ContentFile
+import uuid
 import requests
 import logging
 import re
@@ -6,6 +8,7 @@ from rest_framework.views import APIView
 from rest_framework import status
 from .models import User, Challenge, ChallengeAttempt, ChallengeAttemptUser
 from places.models import FavoritePlace
+from albums.models import Album, Photo
 from .serializers import ChallengeResponseSerializer, ChallengeAttemptSerializer
 from .query_serializers import ChallengeQuerySerializer
 from utils.response_wrapper import api_response
@@ -123,7 +126,7 @@ class ChallengeAttemptView(APIView):
         place = request.data.get('place')
         friends_list = request.data.get('friends', []) # 리스트 형식 지정
         attemptDate = request.data.get('attemptDate')
-        attemptImage = request.FILES.get('attemptImage')  # 파일은 FILES에서 가져옴!
+        attemptImage = request.data.get("attemptImage")  # S3 URL
 
         # 친구 목록 리스트 파싱
         try:
@@ -230,7 +233,7 @@ class ChallengeAttemptView(APIView):
             challengeId= challenge, # 장소에서 연결
             userId= User.objects.get(userId=1), # 유저 기본 설정(request.user)
             attemptDate= attemptDate,
-            # attemptImage= request.build_absolute_url(attemptImage.url),
+            #attemptImage= request.build_absolute_url(attemptImage.url),
             attemptImage = attemptImage,
             resultComment= None, # 추후 수정
             attemptResult = is_success
@@ -255,6 +258,39 @@ class ChallengeAttemptView(APIView):
                 challengeAttemptId=attempt_instance,
                 userId=friend_user
             )
+
+        #3. Album & Photo
+        if is_success:
+            # 1. 앨범 존재 확인 또는 생성
+            album, created = Album.objects.get_or_create(
+                userId=User.objects.get(userId=1),
+                placeId=challenge.placeId,
+                defaults={"representativePhotoId": None}
+            )
+
+            # 2. 사진 추가 (ImageField에 S3 URL을 넣으려면 File 객체 흉내 필요 → 아래 trick 사용)
+            response = requests.get(attemptImage)
+            response.raise_for_status()
+            image_content = ContentFile(response.content)
+
+            # 파일 이름은 UUID로
+            filename = f"{uuid.uuid4()}.jpg"
+
+            photo = Photo.objects.create(
+                album=album,
+                photoUrl=image_content,  # File 객체처럼 다뤄야 함
+                date=attemptDate,
+                feelings=None,
+                weather=None,
+                photoContent=None,
+            )
+            photo.photoUrl.save(filename, image_content, save=True)
+
+            # 3. 대표 사진이 없으면 대표사진으로 설정
+            if not album.representativePhotoId:
+                album.representativePhotoId = photo
+                album.save()
+
 
         # 유저 도전 횟수 카운트
         attempt_count = ChallengeAttempt.objects.filter(
