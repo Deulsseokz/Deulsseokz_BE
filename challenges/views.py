@@ -151,7 +151,7 @@ class ChallengeAttemptView(APIView):
             )
 
         # === FastAPI 호출 (포즈 분석) ===
-        fastapi_url = "http://127.0.0.1:8000/analyze/pose"
+        fastapi_url = "http://localhost:8001/ai/analyze/pose"
         files = {
             'file': (attemptImage.name, attemptImage.read(), attemptImage.content_type)
         }
@@ -175,7 +175,7 @@ class ChallengeAttemptView(APIView):
         # 조건 중에 find 함수 사용해 특정 단어 포함되어 있는 지 확인 해 추출 
 
         # === (장소 판별 호출) ===
-        fastapi_location_url = "http://127.0.0.1:8000/analyze/location"
+        fastapi_location_url = "http://localhost:8001/ai/analyze/location"
         location_payload = {
             'candidates': place  # place가 string이라면 list로 감싸기
         }
