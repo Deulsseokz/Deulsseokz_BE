@@ -1,3 +1,6 @@
+import boto3
+from urllib.parse import quote
+from django.conf import settings
 import logging
 from rest_framework.views import APIView
 from rest_framework import status
@@ -7,6 +10,34 @@ from .query_serializers import PlaceAreaSearchQuerySerializer, PlaceQuerySeriali
 from .serializers import favoritePlaceSerializer
 from utils.response_wrapper import api_response
 logger = logging.getLogger(__name__)
+
+# s3 검색
+def get_place_image_url(place_name: str) -> str | None:
+    s3 = boto3.client('s3',
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        region_name=settings.AWS_S3_REGION_NAME
+    )
+
+    bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+    prefix = f"place-images/{place_name}"  # 확장자 제외
+
+    response = s3.list_objects_v2(
+        Bucket=bucket_name,
+        Prefix=prefix
+    )
+
+    if "Contents" not in response:
+        return None
+
+    # 첫 번째 매칭 파일의 key 가져오기
+    for obj in response["Contents"]:
+        key = obj["Key"]
+        if key.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+            encoded_key = quote(key)
+            return f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{encoded_key}"
+
+    return None
 
 # 장소 지역 검색
 class PlaceAreaSearchView(APIView):
@@ -80,6 +111,7 @@ class FavoritePlaceView(APIView):
 
         for favorite in favorite_places:
             place = favorite.placeId
+            image_url = get_place_image_url(place.placeName)
 
             # 해당 장소에 대한 가장 최근 도전 1개
             latest_attempt = ChallengeAttempt.objects.filter(
@@ -94,7 +126,7 @@ class FavoritePlaceView(APIView):
 
                 response_list.append({
                     "place": place.placeName,
-                    "placeImage": place.placeImage,
+                    "placeImage": image_url,
                     "content": latest_attempt.challengeId.content,
                     "friends": friend_ids if friend_ids else None,
                     "friendsProfileImage": friend_images if friend_images else None
@@ -103,7 +135,7 @@ class FavoritePlaceView(APIView):
                 # 도전 기록이 없을 경우 기본 정보만 반환
                 response_list.append({
                     "place": place.placeName,
-                    "placeImage": place.placeImage,
+                    "placeImage": image_url,
                     "content": None,
                     "friends": None,
                     "friendsProfileImage": None
