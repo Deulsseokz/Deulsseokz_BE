@@ -6,7 +6,7 @@ class Place(models.Model):
     placeId = models.BigAutoField(primary_key=True)
     placeName = models.CharField(max_length=255, db_column='placeName')
     area = models.CharField(max_length=255, null=True, blank=True)
-    placeImage = models.URLField(null=True, blank=True, db_column='placeImage')
+    placeImage = models.CharField(null=True, blank=True, db_column='placeImage')
     location = models.JSONField(default=list) # float의 List
 
     class Meta:
