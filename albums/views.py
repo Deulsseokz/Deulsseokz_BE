@@ -7,6 +7,8 @@ from .serializers import PhotoRequestSerializer
 from utils.response_wrapper import api_response
 from rest_framework.parsers import MultiPartParser, FormParser
 logger = logging.getLogger(__name__)
+from django.conf import settings
+from urllib.parse import quote
 
 # 앨범 목록 조회
 class AlbumListView(APIView):
@@ -30,12 +32,16 @@ class AlbumListView(APIView):
         
         result = []
         for album in albums:
-            photo_url = [p.photoUrl.url for p in album.photos.all() if p.photoUrl]
+            photo_urls = []
+            for photo in album.photos.all():
+                if photo.photoUrl:  # FileField 또는 ImageField라고 가정
+                    url = f"{(photo.photoUrl)}"
+                    photo_urls.append(url)
 
             result.append({
                 "id": album.albumId,
                 "place": album.placeId.placeName,
-                "representPhoto": photo_url
+                "representPhoto": photo_urls
             })
 
         return api_response(
