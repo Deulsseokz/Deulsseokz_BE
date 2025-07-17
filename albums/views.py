@@ -33,6 +33,7 @@ class AlbumListView(APIView):
             photo_url = [p.photoUrl.url for p in album.photos.all() if p.photoUrl]
 
             result.append({
+                "id": album.albumId,
                 "place": album.placeId.placeName,
                 "representPhoto": photo_url
             })
@@ -74,7 +75,8 @@ class PlaceAlbumPictureView(APIView):
         result = []
         for photo in photos:
             result.append({
-                "url": photo.photoUrl if photo.photoUrl else None,
+                "id": photo.photoId,
+                "url": str(photo.photoUrl) if photo.photoUrl else None,
                 "feelings": photo.feelings,
                 "weather": photo.weather,
                 "photoContent": photo.photoContent,
