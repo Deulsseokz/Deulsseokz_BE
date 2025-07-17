@@ -3,6 +3,20 @@ from places.models import Place
 from users.models import User
 
 # Create your models here.
+import uuid
+
+def attempt_image_upload_path(instance, filename):
+    ext = filename.split('.')[-1]
+    user_id = instance.userId.userId
+    place_name = instance.challengeId.placeId.placeName.replace(" ", "_")
+    return f"{user_id}/{place_name}/{uuid.uuid4().hex}.{ext}"
+
+def user_place_attempt_path(instance, filename):
+    ext = filename.split('.')[-1]
+    user_id = instance.userId.userId
+    place_name = instance.challengeId.placeId.placeName.replace(" ", "_")
+    return f"{user_id}/{place_name}/{uuid.uuid4().hex}.{ext}"
+
 class Challenge(models.Model):
     challengeId = models.BigAutoField(primary_key=True)
     placeId = models.ForeignKey(Place, on_delete=models.CASCADE, db_column='placeId')
@@ -23,7 +37,7 @@ class ChallengeAttempt(models.Model):
     challengeId = models.ForeignKey(Challenge, on_delete=models.CASCADE, db_column='challengeId')
     userId = models.ForeignKey(User, on_delete=models.CASCADE, db_column='userId')
     attemptDate = models.CharField(max_length=255, null=True, blank=True)
-    attemptImage = models.URLField(null=True, blank=True)
+    attemptImage = models.ImageField(upload_to=attempt_image_upload_path, null=True, blank=True)
     resultComment = models.CharField(max_length=255, null=True, blank=True)
     attemptResult = models.BooleanField(null=True)
 

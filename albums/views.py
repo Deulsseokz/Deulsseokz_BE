@@ -30,8 +30,7 @@ class AlbumListView(APIView):
         
         result = []
         for album in albums:
-            photo = album.representativePhotoId
-            photo_url = photo.photoUrl if photo else None
+            photo_url = [p.photoUrl.url for p in album.photos.all() if p.photoUrl]
 
             result.append({
                 "place": album.placeId.placeName,

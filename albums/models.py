@@ -1,6 +1,7 @@
 from django.db import models
 from users.models import User
 from places.models import Place
+from albums.storages import PublicMediaStorage
 
 # Create your models here.
 import uuid
@@ -21,7 +22,12 @@ class Photo(models.Model):
     weather = models.CharField(max_length=255, null=True, blank=True)
     photoContent = models.CharField(max_length=500, null=True, blank=True)
     date = models.DateTimeField(null=True, blank=True)
-    photoUrl = models.ImageField(upload_to=album_photo_path,  default='photos/default.jpg')
+    photoUrl = models.ImageField(
+        upload_to=album_photo_path,
+        storage=PublicMediaStorage,
+        default='photos/default.jpg'
+    )
+
 
     class Meta:
         db_table = 'Photo'

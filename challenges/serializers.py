@@ -10,6 +10,12 @@ class ChallengeResponseSerializer(serializers.ModelSerializer):
 
     def get_isFavorite(self, obj):
         return self.context.get('is_favorite', False)
+    
+class ChallengeAttemptRequestSerializer(serializers.Serializer):
+    place = serializers.CharField()
+    friends = serializers.CharField(required=False)
+    attemptDate = serializers.DateField()
+    attemptImage = serializers.ImageField()
 
 class ChallengeAttemptSerializer(serializers.ModelSerializer):
     class Meta:

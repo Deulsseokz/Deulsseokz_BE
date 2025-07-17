@@ -2,11 +2,13 @@ import requests
 import logging
 import re
 import json
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 from rest_framework.views import APIView
 from rest_framework import status
 from .models import User, Challenge, ChallengeAttempt, ChallengeAttemptUser
 from places.models import FavoritePlace
-from .serializers import ChallengeResponseSerializer, ChallengeAttemptSerializer
+from .serializers import ChallengeResponseSerializer, ChallengeAttemptRequestSerializer, ChallengeAttemptSerializer
 from .query_serializers import ChallengeQuerySerializer
 from utils.response_wrapper import api_response
 logger = logging.getLogger(__name__)
@@ -119,6 +121,7 @@ def extract_conditions(*conditions):
 
 # 챌린지 도전
 class ChallengeAttemptView(APIView):
+    @swagger_auto_schema(request_body=ChallengeAttemptRequestSerializer)
     def post(self, request):
         place = request.data.get('place')
         friends_list = request.data.get('friends', []) # 리스트 형식 지정
@@ -200,10 +203,10 @@ class ChallengeAttemptView(APIView):
         logger.info(f"[LOCATION ANALYSIS RESULT] {location_result}")
 
         # 조건 추출 후 검사
-        pose_result_data = pose_result.get("results", [ ])
-        pose_result_str = " "
-        if pose_result_data and isinstance(pose_result_data, list):
-            pose_result_str = pose_result_data[0].get("pose", "")
+        # pose_result_data = pose_result.get("results", [ ])
+        # pose_result_str = " "
+        # if pose_result_data and isinstance(pose_result_data, list):
+        pose_result_str = pose_result.get("pose", "").lower()
 
         location_result = location_result.get("location", "")
 
@@ -235,6 +238,8 @@ class ChallengeAttemptView(APIView):
             resultComment= None, # 추후 수정
             attemptResult = is_success
         )
+        # 도전 사진 S3 업로드
+        attempt_instance.attemptImage.save(attemptImage.name, attemptImage, save=True)
         serializer = ChallengeAttemptSerializer(attempt_instance)
 
         #2. ChallengeAttemptUser 
@@ -265,15 +270,21 @@ class ChallengeAttemptView(APIView):
         # 이번 도전은 몇 번째인지 (기존 도전 수 + 1)
         current_attempt = attempt_count + 1
 
+        # 조건1: location과 일치 여부
+        condition1_pass = any(cond in location_result for cond in required_conditions)
+
+        # 조건2: pose와 일치 여부
+        condition2_pass = any(cond in pose_result_str for cond in required_conditions)
+
+        # 최종 성공 여부: 둘 다 만족해야 True
+        is_success = condition1_pass and condition2_pass
+
         # 응답 반환
         return api_response(
-            # result={
-            #     "pose_analysis": analysis_result,
-            #     "location_prediction": location_result
-            # }
             result={
                 "attemptResult": is_success,
-                # "resultComment": "text",
+                "condition1": condition1_pass,  # 장소 조건 만족 여부
+                "condition2": condition2_pass,  # 포즈 조건 만족 여부
                 "attempt": current_attempt
             }
         )

@@ -3,6 +3,8 @@ FROM python:3.11-slim
 # 시스템 패키지 설치 (mysqlclient 빌드에 필요)
 RUN apt-get update && apt-get install -y \
     gcc \
+    libjpeg-dev \
+    zlib1g-dev \
     default-libmysqlclient-dev \
     build-essential \
     pkg-config \
