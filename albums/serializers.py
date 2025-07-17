@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import Photo, Album
 
 class PhotoRequestSerializer(serializers.ModelSerializer):
-    photo = serializers.CharField(required=True)
+    photo = serializers.ImageField(required=True)
     place = serializers.CharField(required=True)
 
     # 설명 관련 필드는 선택 사항

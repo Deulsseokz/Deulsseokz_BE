@@ -5,6 +5,7 @@ from .models import User, Photo, Album, Place
 from .query_serializers import PlaceAlbumSerializer, PhotoSerializer
 from .serializers import PhotoRequestSerializer
 from utils.response_wrapper import api_response
+from rest_framework.parsers import MultiPartParser, FormParser
 logger = logging.getLogger(__name__)
 
 # 앨범 목록 조회
@@ -88,21 +89,23 @@ class PlaceAlbumPictureView(APIView):
 
 class PhotoView(APIView):
     # 사진 (설명) 추가
+    parser_classes = [MultiPartParser, FormParser]
+
     def post(self, request):
         serializer = PhotoRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         validated = serializer.validated_data
-        placeName = validated['place']
-        photoFile = validated.get('photo')
-        
-        # 선택적 필드 (설명 관련)
-        photoContent = validated.get('photoContent')
+        place_name = validated['place']
+        photo_file = validated.get('photo')
+        photo_content = validated.get('photoContent')
         feelings = validated.get('feelings')
         weather = validated.get('weather')
         date = validated.get('date')
 
-        if not photoFile:
+        print(f"[DEBUG] type={type(photo_file)}, name={getattr(photo_file, 'name', None)}")
+
+        if not photo_file:
             return api_response(
                 isSuccess=False,
                 code="PHOTO_400",
@@ -110,49 +113,39 @@ class PhotoView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        user = User.objects.get(userId=1)
-        
         try:
-            place = Place.objects.get(placeName=placeName)
-        except Place.DoesNotExist:
-            return api_response(
-                code="PLACE404",
-                message="해당 장소를 찾을 수 없습니다.",
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        try:
+            user = User.objects.get(userId=1)  # 실제 서비스에서는 인증 유저 사용 권장
+            place = Place.objects.get(placeName=place_name)
             album = Album.objects.get(userId=user, placeId=place)
+        except User.DoesNotExist:
+            return api_response(code="USER404", message="사용자를 찾을 수 없습니다.", status_code=404)
+        except Place.DoesNotExist:
+            return api_response(code="PLACE404", message="해당 장소를 찾을 수 없습니다.", status_code=404)
         except Album.DoesNotExist:
-            return api_response(
-                code="ALBUM404",
-                message="앨범이 존재하지 않습니다.",
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+            return api_response(code="ALBUM404", message="앨범이 존재하지 않습니다.", status_code=404)
 
-        # 상황 1: 사진만 추가
-        if not all([photoContent, feelings, weather, date]):
-            Photo.objects.create(
-                album=album,
-                photoUrl=photoFile
-            )
-            return api_response(
-                result="사진이 성공적으로 추가되었습니다.",
-                status_code=status.HTTP_200_OK
-            )
+        # 저장 필드 구성
+        photo_data = {
+            'album': album,
+            'photoUrl': photo_file
+        }
+        if photo_content:
+            photo_data['photoContent'] = photo_content
+        if feelings:
+            photo_data['feelings'] = feelings
+        if weather:
+            photo_data['weather'] = weather
+        if date:
+            photo_data['date'] = date
 
-        # 상황 2: 사진과 설명 같이 추가
-        Photo.objects.create(
-            album=album,
-            photoUrl=photoFile,
-            photoContent=photoContent,
-            feelings=feelings,
-            weather=weather,
-            date=date
-        )
+        photo = Photo.objects.create(**photo_data)
+        
+        logger.info(f"[S3 UPLOADED] name={photo_file.name}, path={photo.photoUrl.name}, url={photo.photoUrl.url}")
+
         return api_response(
-            result="사진과 설명이 성공적으로 추가되었습니다.",
-            status_code=status.HTTP_200_OK
+            result="사진이 성공적으로 추가되었습니다.",
+            data={"photoUrl": photo.photoUrl.url},
+            status_code=200
         )
     
     # 사진 (설명) 수정

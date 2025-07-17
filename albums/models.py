@@ -3,6 +3,11 @@ from users.models import User
 from places.models import Place
 
 # Create your models here.
+import uuid
+def album_photo_path(instance, filename):
+    ext = filename.split('.')[-1]
+    return f"album-photos/{uuid.uuid4().hex}.{ext}"
+
 class Photo(models.Model):
     photoId = models.BigAutoField(primary_key=True)
     # albumId -> album으로 수정
@@ -16,7 +21,7 @@ class Photo(models.Model):
     weather = models.CharField(max_length=255, null=True, blank=True)
     photoContent = models.CharField(max_length=500, null=True, blank=True)
     date = models.DateTimeField(null=True, blank=True)
-    photoUrl = models.CharField(max_length=255, null=True, blank=True)
+    photoUrl = models.ImageField(upload_to=album_photo_path,  default='photos/default.jpg')
 
     class Meta:
         db_table = 'Photo'
