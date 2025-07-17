@@ -38,7 +38,7 @@ class ChallengeListView(APIView):
                 "challengeId": challenge.challengeId,
                 "place": challenge.placeId.placeName,
                 "isChallenged": attempt is not None,
-                "challengePhoto": attempt.attemptImage if attempt else None,
+                "challengePhoto": str(attempt.attemptImage) if attempt else None,
                 "location": challenge.placeId.location
             })
 
