@@ -22,7 +22,7 @@ class ChallengeAttempt(models.Model):
     challengeAttemptId = models.BigAutoField(primary_key=True)
     challengeId = models.ForeignKey(Challenge, on_delete=models.CASCADE, db_column='challengeId')
     userId = models.ForeignKey(User, on_delete=models.CASCADE, db_column='userId')
-    attemptDate = models.CharField(null=True, blank=True)
+    attemptDate = models.CharField(max_length=255, null=True, blank=True)
     attemptImage = models.URLField(null=True, blank=True)
     resultComment = models.CharField(max_length=255, null=True, blank=True)
     attemptResult = models.BooleanField(null=True)
