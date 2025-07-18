@@ -131,18 +131,29 @@ class ChallengeAttemptView(APIView):
         attemptImage = request.FILES.get('attemptImage')  # 파일은 FILES에서 가져옴!
 
         # 친구 목록 리스트 파싱
+        friends_raw = request.data.get('friends', '[]')  # "[2,3]" 형태로 변경
         try:
-            friends = json.loads(friends_list)
-        except json.JSONDecodeError:
-            return api_response({"error": "Invalid format for friends"}, status=400)
-
-        if not all([place, attemptDate, attemptImage]):
+            friends = json.loads(friends_raw)
+            if not isinstance(friends, list):
+                raise ValueError("friends must be a list")
+        except (json.JSONDecodeError, ValueError):
             return api_response(
-                code="INVALID_INPUT",
-                message="place, attemptDate, attemptImage는 필수입니다.",
-                status_code=status.HTTP_400_BAD_REQUEST,
-                is_success=False
+                {"error": "Invalid format for friends (must be JSON list string)"},
+                status=400
             )
+
+        # try:
+        #     friends = json.loads(friends_list)
+        # except json.JSONDecodeError:
+        #     return api_response({"error": "Invalid format for friends"}, status=400)
+
+        # if not all([place, attemptDate, attemptImage]):
+        #     return api_response(
+        #         code="INVALID_INPUT",
+        #         message="place, attemptDate, attemptImage는 필수입니다.",
+        #         status_code=status.HTTP_400_BAD_REQUEST,
+        #         is_success=False
+        #     )
         
         # 장소에 속한 챌린지 가져오기
         try:
