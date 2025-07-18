@@ -1,6 +1,8 @@
 import logging
 from rest_framework.views import APIView
+from rest_framework.parsers import JSONParser
 from rest_framework import status
+from django.core.files.base import ContentFile
 from .models import User, Photo, Album, Place
 from .query_serializers import PlaceAlbumSerializer, PhotoSerializer
 from .serializers import PhotoRequestSerializer
@@ -9,6 +11,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 logger = logging.getLogger(__name__)
 from django.conf import settings
 from urllib.parse import quote
+import requests
 
 # 앨범 목록 조회
 class AlbumListView(APIView):
@@ -92,6 +95,72 @@ class PlaceAlbumPictureView(APIView):
 
         return api_response(
             result=result
+        )
+    
+class PhotoUploadFromUrlView(APIView):
+    parser_classes = [JSONParser]
+
+    # url로 사진 추가
+    def post(self, request):
+        place_name = request.data.get("place")
+        photo_url = request.data.get("photo")
+        photo_content = request.data.get("photoContent")
+        feelings = request.data.get("feelings")
+        weather = request.data.get("weather")
+        date = request.data.get("date")
+
+        if not photo_url:
+            return api_response(
+                isSuccess=False,
+                code="PHOTO_400",
+                message="photoUrl 필드는 필수입니다.",
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            user = User.objects.get(userId=1)
+            place = Place.objects.get(placeName=place_name)
+            album = Album.objects.get(userId=user, placeId=place)
+        except User.DoesNotExist:
+            return api_response(code="USER404", message="사용자를 찾을 수 없습니다.", status_code=404)
+        except Place.DoesNotExist:
+            return api_response(code="PLACE404", message="해당 장소를 찾을 수 없습니다.", status_code=404)
+        except Album.DoesNotExist:
+            return api_response(code="ALBUM404", message="앨범이 존재하지 않습니다.", status_code=404)
+
+        try:
+            response = requests.get(photo_url)
+            response.raise_for_status()
+            ext = photo_url.split('.')[-1].split('?')[0]
+            photo_file = ContentFile(response.content)
+            photo_file.name = f"url_upload.{ext}"
+        except Exception as e:
+            return api_response(
+                isSuccess=False,
+                code="PHOTO_URL_ERROR",
+                message=f"URL에서 이미지를 불러올 수 없습니다: {str(e)}",
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        photo_data = {
+            'album': album,
+            'photoUrl': photo_file,
+        }
+        if photo_content:
+            photo_data['photoContent'] = photo_content
+        if feelings:
+            photo_data['feelings'] = feelings
+        if weather:
+            photo_data['weather'] = weather
+        if date:
+            photo_data['date'] = date
+
+        photo = Photo.objects.create(**photo_data)
+
+        return api_response(
+            result="URL 이미지가 성공적으로 추가되었습니다.",
+            data={"photoUrl": photo.photoUrl.url},
+            status_code=200
         )
 
 class PhotoView(APIView):
