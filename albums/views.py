@@ -13,6 +13,7 @@ from django.conf import settings
 from urllib.parse import quote
 import requests
 
+
 # 앨범 목록 조회
 class AlbumListView(APIView):
     def get(self, request):
@@ -190,7 +191,7 @@ class PhotoView(APIView):
             )
 
         try:
-            user = User.objects.get(userId=1)  # 실제 서비스에서는 인증 유저 사용 권장
+            user = User.objects.get(userId=1) 
             place = Place.objects.get(placeName=place_name)
             album = Album.objects.get(userId=user, placeId=place)
         except User.DoesNotExist:

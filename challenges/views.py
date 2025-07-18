@@ -2,6 +2,7 @@ import requests
 import logging
 import re
 import json
+from django.core.files.base import ContentFile
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from rest_framework.views import APIView
@@ -38,7 +39,7 @@ class ChallengeListView(APIView):
                 "challengeId": challenge.challengeId,
                 "place": challenge.placeId.placeName,
                 "isChallenged": attempt is not None,
-                "challengePhoto": str(attempt.attemptImage) if attempt else None,
+                "challengePhoto": attempt.attemptImage.url if attempt else None,
                 "location": challenge.placeId.location
             })
 
@@ -247,13 +248,21 @@ class ChallengeAttemptView(APIView):
             userId= User.objects.get(userId=1), # 유저 기본 설정(request.user)
             attemptDate= attemptDate,
             # attemptImage= request.build_absolute_url(attemptImage.url),
-            attemptImage = attemptImage,
+            # attemptImage = attemptImage,
             resultComment= None, # 추후 수정
             attemptResult = is_success
         )
         # 도전 사진 S3 업로드
-        attempt_instance.attemptImage.save(attemptImage.name, attemptImage, save=True)
+        attemptImage.seek(0)
+        image_content = attemptImage.read()  # bytes
+        image_file = ContentFile(image_content)
+        image_file.name = attemptImage.name  # 파일명 유지
+        attempt_instance.attemptImage.save(image_file.name, image_file, save=True)
         serializer = ChallengeAttemptSerializer(attempt_instance)
+
+        print("[DEBUG] image_file name:", image_file.name)
+        print("[DEBUG] instance path:", attempt_instance.attemptImage.name)
+        print("[DEBUG] S3 URL:", attempt_instance.attemptImage.url)
 
         #2. ChallengeAttemptUser 
         friends_ids = friends if friends else [ ]

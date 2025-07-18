@@ -1,6 +1,7 @@
 from django.db import models
 from places.models import Place 
 from users.models import User
+from challenges.storages import PublicMediaStorage
 
 # Create your models here.
 import uuid
@@ -37,7 +38,9 @@ class ChallengeAttempt(models.Model):
     challengeId = models.ForeignKey(Challenge, on_delete=models.CASCADE, db_column='challengeId')
     userId = models.ForeignKey(User, on_delete=models.CASCADE, db_column='userId')
     attemptDate = models.CharField(max_length=255, null=True, blank=True)
-    attemptImage = models.ImageField(upload_to=attempt_image_upload_path, null=True, blank=True)
+    attemptImage = models.ImageField(upload_to=attempt_image_upload_path, 
+                                     storage=PublicMediaStorage,
+                                     null=True, blank=True)
     resultComment = models.CharField(max_length=255, null=True, blank=True)
     attemptResult = models.BooleanField(null=True)
 

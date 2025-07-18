@@ -19,4 +19,4 @@ class PhotoRequestSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Photo
-        fields = ['photo', 'place', 'photoContent', 'feelings', 'weather', 'date']
+        fields = ['photo', 'photoUrl', 'place', 'photoContent', 'feelings', 'weather', 'date']
