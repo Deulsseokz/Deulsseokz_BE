@@ -82,6 +82,7 @@ class ChallengeInfoView(APIView):
 
             result = []
             for challenge in challenges:
+                placeName = challenge.placeId.placeName
                 is_favorite = challenge.placeId.placeId in favorite_place_ids
                 serializer = ChallengeResponseSerializer(challenge, context={'is_favorite': is_favorite})
                 result.append(serializer.data)
@@ -105,6 +106,7 @@ class ChallengeInfoView(APIView):
 
             result = []
             for challenge in challenges:
+                placeName = challenge.placeId.placeName
                 is_favorite = challenge.placeId.placeId in favorite_place_ids
                 serializer = ChallengeResponseSerializer(challenge, context={'is_favorite': is_favorite})
                 result.append(serializer.data)
