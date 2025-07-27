@@ -142,19 +142,6 @@ class ChallengeAttemptView(APIView):
                 {"error": "Invalid format for friends (must be JSON list string)"},
                 status=400
             )
-
-        # try:
-        #     friends = json.loads(friends_list)
-        # except json.JSONDecodeError:
-        #     return api_response({"error": "Invalid format for friends"}, status=400)
-
-        # if not all([place, attemptDate, attemptImage]):
-        #     return api_response(
-        #         code="INVALID_INPUT",
-        #         message="place, attemptDate, attemptImage는 필수입니다.",
-        #         status_code=status.HTTP_400_BAD_REQUEST,
-        #         is_success=False
-        #     )
         
         # 장소에 속한 챌린지 가져오기
         try:
