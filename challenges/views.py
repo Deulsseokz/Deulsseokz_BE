@@ -8,6 +8,7 @@ from drf_yasg import openapi
 from rest_framework.views import APIView
 from rest_framework import status
 from .models import User, Challenge, ChallengeAttempt, ChallengeAttemptUser
+from albums.models import Album, Photo
 from places.models import FavoritePlace
 from .serializers import ChallengeResponseSerializer, ChallengeAttemptRequestSerializer, ChallengeAttemptSerializer
 from .query_serializers import ChallengeQuerySerializer
@@ -240,16 +241,17 @@ class ChallengeAttemptView(APIView):
             attemptResult = is_success
         )
         # 도전 사진 S3 업로드
-        attemptImage.seek(0)
-        image_content = attemptImage.read()  # bytes
-        image_file = ContentFile(image_content)
-        image_file.name = attemptImage.name  # 파일명 유지
-        attempt_instance.attemptImage.save(image_file.name, image_file, save=True)
-        serializer = ChallengeAttemptSerializer(attempt_instance)
+        if is_success:
+            attemptImage.seek(0)
+            image_content = attemptImage.read()  # bytes
+            image_file = ContentFile(image_content)
+            image_file.name = attemptImage.name  # 파일명 유지
+            attempt_instance.attemptImage.save(image_file.name, image_file, save=True)
+            serializer = ChallengeAttemptSerializer(attempt_instance)
 
-        print("[DEBUG] image_file name:", image_file.name)
-        print("[DEBUG] instance path:", attempt_instance.attemptImage.name)
-        print("[DEBUG] S3 URL:", attempt_instance.attemptImage.url)
+            print("[DEBUG] image_file name:", image_file.name)
+            print("[DEBUG] instance path:", attempt_instance.attemptImage.name)
+            print("[DEBUG] S3 URL:", attempt_instance.attemptImage.url)
 
         #2. ChallengeAttemptUser 
         friends_ids = friends if friends else [ ]
@@ -269,6 +271,42 @@ class ChallengeAttemptView(APIView):
                 challengeAttemptId=attempt_instance,
                 userId=friend_user
             )
+
+        # 도전 사진 앨범에 업로드 (앨범 없으면 새로 생성)
+        if is_success:
+            try:
+                user = User.objects.get(userId=1)  # 추후 수정
+                place = challenge.placeId
+
+                # 앨범 없으면 생성
+                album, created = Album.objects.get_or_create(
+                    userId=user,
+                    placeId=place,
+                    defaults={
+                        'albumName': place.placeName
+                    }
+                )
+
+                if created:
+                    logger.info(f"[ALBUM CREATED] userId={user.userId}, place={place.placeName}")
+
+            except Exception as e:
+                logger.warning(f"[ALBUM ERROR] 앨범 생성 또는 조회 중 오류 발생: {str(e)}")
+            else:
+                # 이미지 파일 재사용 위해 다시 포인터 초기화
+                attemptImage.seek(0)
+                photo_image = ContentFile(attemptImage.read())
+                photo_image.name = attemptImage.name
+
+                # Photo 생성
+                photo = Photo.objects.create(
+                    album=album,
+                    photoUrl=photo_image,
+                    photoContent="챌린지 인증 사진",
+                    date=attemptDate
+                )
+
+                logger.info(f"[PHOTO ADDED TO ALBUM] photoId={photo.photoId}, albumId={album.albumId}, path={photo.photoUrl.name}")
 
         # 유저 도전 횟수 카운트
         attempt_count = ChallengeAttempt.objects.filter(
