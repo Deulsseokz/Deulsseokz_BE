@@ -166,7 +166,7 @@ class PhotoUploadFromUrlView(APIView):
 
 class PhotoView(APIView):
     # 사진 (설명) 추가
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def post(self, request):
         serializer = PhotoRequestSerializer(data=request.data)
