@@ -56,3 +56,42 @@ class PointView(APIView):
                 "date": point.date
             }
         )
+    
+    # 포인트 이력 조회
+    def get(self, request):
+        try: 
+            user = User.objects.get(userId=1)
+        except User.DoesNotExist:
+            return api_response(
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+        
+        point_qs = Point.objects.filter(userId=user).order_by('date')
+
+        if not point_qs.exists():
+            return api_response(status_code=HTTP_200_OK,
+                                result={
+                                    "holdingPoint": 0,
+                                    "pointLogs": []
+                                })
+        
+        # 유저의 전체 홀딩 포인트 = 가장 마지막 항목의 홀딩 포인트
+        latest_point = point_qs.last()
+        holding_point = latest_point.holdingPoint or 0
+
+        point_logs = []
+        for point in point_qs:
+            point_logs.append({
+                "date": point.date,
+                "content": point.content,
+                "todayPoint": point.todayPoint or 0,
+                "pointEarned": point.pointEarned or 0,
+                "pointUsed": point.pointUsed or 0
+            })
+
+        return api_response(
+            result={
+                "holdingPoint": holding_point,
+                "pointLogs": point_logs
+            }
+        )
