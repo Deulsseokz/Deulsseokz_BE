@@ -1,9 +1,11 @@
 from django.db import models
+from .models import UserBadge
 
 class User(models.Model):
     userId = models.BigAutoField(primary_key=True)
     userName = models.CharField(max_length=255, null=True, blank=True)
     profileImage = models.CharField(max_length=500, null=True, blank=True, db_column='profileImage')
+    representBadge = models.ForeignKey(UserBadge, related_name='representBadgeId', on_delete=models.CASCADE)
 
     class Meta:
         db_table = 'User'
