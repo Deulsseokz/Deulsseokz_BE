@@ -28,6 +28,12 @@ class Point(models.Model):
         db_column='pointEarned'
     )
 
+    pointUsed = models.IntegerField(
+        null=True,
+        blank=True,
+        db_column='pointUsed'
+    )
+
     todayPoint = models.IntegerField(
         null=True,
         blank=True,
