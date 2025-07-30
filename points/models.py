@@ -13,12 +13,14 @@ class Point(models.Model):
         related_name='points'
     )
 
-    placeId = models.ForeignKey(
-        Place,
-        on_delete=models.CASCADE,
-        db_column='placeId',
-        related_name='points'
-    )
+    # placeId = models.ForeignKey(
+    #     Place,
+    #     on_delete=models.CASCADE,
+    #     db_column='placeId',
+    #     related_name='points'
+    # )
+
+    content = models.CharField(max_length=250, null=True, blank=True)
 
     date = models.CharField(max_length=250, null=True, blank=True)
 
@@ -26,6 +28,12 @@ class Point(models.Model):
         null=True,
         blank=True,
         db_column='pointEarned'
+    )
+
+    pointUsed = models.IntegerField(
+        null=True,
+        blank=True,
+        db_column='pointUsed'
     )
 
     todayPoint = models.IntegerField(

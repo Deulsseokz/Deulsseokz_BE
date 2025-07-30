@@ -4,6 +4,7 @@ class User(models.Model):
     userId = models.BigAutoField(primary_key=True)
     userName = models.CharField(max_length=255, null=True, blank=True)
     profileImage = models.CharField(max_length=500, null=True, blank=True, db_column='profileImage')
+    representBadge = models.ForeignKey('badges.UserBadge', related_name='representBadgeId', on_delete=models.CASCADE, null=True)
 
     class Meta:
         db_table = 'User'
