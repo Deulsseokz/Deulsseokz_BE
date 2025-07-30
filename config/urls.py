@@ -46,4 +46,5 @@ urlpatterns = [
     path('', include('albums.urls')), # 앨범 및 사진은 내부에서 처리 (다른 것은 이렇게 처리하면 안 됨)
     path('mypage/', include('users.urls')),
     path('friends/', include('users.urls')),
+    path('point', include('points.urls')),
 ]
