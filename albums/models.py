@@ -25,7 +25,8 @@ class Photo(models.Model):
     photoUrl = models.ImageField(
         upload_to=album_photo_path,
         storage=PublicMediaStorage,
-        default='photos/default.jpg'
+        default='photos/default.jpg',
+        max_length=2048
     )
 
 
