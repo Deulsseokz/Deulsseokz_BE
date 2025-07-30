@@ -48,7 +48,6 @@ class MypageView(APIView):
             status_code=status.HTTP_200_OK
         )
 
-
 # 친구 목록 조회
 class FriendsListView(APIView):
     def get(self, request):
