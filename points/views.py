@@ -69,8 +69,7 @@ class PointView(APIView):
         point_qs = Point.objects.filter(userId=user).order_by('date')
 
         if not point_qs.exists():
-            return api_response(status_code=HTTP_200_OK,
-                                result={
+            return api_response(result={
                                     "holdingPoint": 0,
                                     "pointLogs": []
                                 })
