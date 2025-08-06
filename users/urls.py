@@ -15,9 +15,11 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.urls import path
-from .views import MypageView, FriendsListView
+from .views import ProfileView, MypageView, FriendsListView, CustomGoogleLoginView
 
 urlpatterns = [
+    path('profile', ProfileView.as_view()),
     path('info', MypageView.as_view()),
     path('', FriendsListView.as_view()),
+    path('google/login/callback/', CustomGoogleLoginView.as_view(), name='google_callback'),
 ]

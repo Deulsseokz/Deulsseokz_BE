@@ -7,6 +7,34 @@ from badges.models import Badge, UserBadge
 from .serializers import MypageInfoSerializer
 from utils.response_wrapper import api_response
 logger = logging.getLogger(__name__)
+from rest_framework.permissions import IsAuthenticated
+from allauth.socialaccount.providers.oauth2.views import OAuth2Adapter
+from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from dj_rest_auth.registration.views import SocialLoginView
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.shortcuts import redirect
+
+class CustomGoogleLoginView(SocialLoginView):
+    adapter_class = GoogleOAuth2Adapter
+
+    def get_response(self):
+        response = super().get_response()
+        user = self.user  # 로그인된 사용자
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+        redirect_url = f"http://localhost:8081/auth/callback?token={access_token}"
+        return redirect(redirect_url)
+
+# 유저 정보 조회
+class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        result = {
+            "email": request.user.email,
+            "username": request.user.username,
+        }
+        return api_response(result=result)
 
 class MypageView(APIView):
     # 마이페이지 정보 조회
