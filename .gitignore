@@ -19,3 +19,19 @@ myvenv/
 .DS_Store
 .idea/
 .vscode/
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# venv
+.venv/
+venv/
+myvenv/
+
+# OS/IDE
+.DS_Store
+.idea/
+.vscode/
