@@ -8,7 +8,10 @@ from .serializers import MypageInfoSerializer
 from utils.response_wrapper import api_response
 logger = logging.getLogger(__name__)
 
+from rest_framework.permissions import AllowAny
+
 class MypageView(APIView):
+    permission_classes = [AllowAny]
     # 마이페이지 정보 조회
     def get(self, request):
         try:
@@ -21,7 +24,7 @@ class MypageView(APIView):
         result = []
         userName = user.userName
         profileImage = user.profileImage
-        badgeImage = user.representBadge
+        badgeId = user.representBadge
         serializer = MypageInfoSerializer(user)
         result.append(serializer.data)
 
