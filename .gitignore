@@ -1,3 +1,21 @@
 /myvenv
 /config/settings.py
 /.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+
+# venv
+.venv/
+venv/
+myvenv/
+
+# OS/IDE
+.DS_Store
+.idea/
+.vscode/
