@@ -50,4 +50,5 @@ urlpatterns = [
     path('accounts/', include('allauth.urls')),  # allauth URL (google 포함)
     path('mypage/', include('users.urls')),
     path('auth/', include('accounts.urls')),
+    path('badge/', include('badges.urls')),
 ]
