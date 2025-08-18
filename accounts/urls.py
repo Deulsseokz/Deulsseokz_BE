@@ -16,10 +16,12 @@ Including another URLconf
 """
 from django.urls import path
 from .views_auth import GoogleIdTokenLogin, RotateTokenView
+from .views_auth_apple import AppleSignInView
 from .views import MeView
 
 urlpatterns = [
     path("google", GoogleIdTokenLogin.as_view()),
     path("refresh", RotateTokenView.as_view()),
     path("me", MeView.as_view()),
+    path("apple", AppleSignInView.as_view()),
 ]
