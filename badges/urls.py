@@ -19,4 +19,5 @@ from .views import BadgeView
 
 urlpatterns = [
     path('', BadgeView.as_view()),
+    path('represent', BadgeView.as_view()),
 ]
