@@ -15,9 +15,10 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.urls import path
-from .views import MypageView, FriendsListView
+from .views import ProfileView, MypageView, FriendsListView
 
 urlpatterns = [
+    path('profile', ProfileView.as_view()),
     path('info', MypageView.as_view()),
     path('', FriendsListView.as_view()),
 ]

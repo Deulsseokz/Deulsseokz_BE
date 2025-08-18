@@ -47,4 +47,7 @@ urlpatterns = [
     path('mypage/', include('users.urls')),
     path('friends/', include('users.urls')),
     path('point', include('points.urls')),
+    path('accounts/', include('allauth.urls')),  # allauth URL (google 포함)
+    path('mypage/', include('users.urls')),
+    path('auth/', include('accounts.urls')),
 ]

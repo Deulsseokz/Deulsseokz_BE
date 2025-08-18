@@ -1,7 +1,17 @@
 from django.db import models
+from django.conf import settings
 
 class User(models.Model):
     userId = models.BigAutoField(primary_key=True)
+
+    authUser = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile",     # auth_user.profile 로 접근 가능
+        null=True, blank=True,      # 기존 데이터 호환 위해 초기엔 허용
+        db_column="auth_user_id",
+    )
+
     userName = models.CharField(max_length=255, null=True, blank=True)
     profileImage = models.CharField(max_length=500, null=True, blank=True, db_column='profileImage')
     representBadge = models.ForeignKey('badges.UserBadge', related_name='representBadgeId', on_delete=models.CASCADE, null=True)
