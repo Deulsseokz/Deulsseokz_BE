@@ -14,8 +14,11 @@ from .query_serializers import ChallengeQuerySerializer
 from utils.response_wrapper import api_response
 logger = logging.getLogger(__name__)
 
+from rest_framework.permissions import AllowAny
+
 # 전체 챌린지 목록 조회
 class ChallengeListView(APIView):
+    permission_classes = [AllowAny]
     def get(self, request):
         try: 
             user = User.objects.get(userId=1)
@@ -37,7 +40,7 @@ class ChallengeListView(APIView):
 
             result.append({
                 "challengeId": challenge.challengeId,
-                "place": challenge.placeId.placeName,
+                "placeName": challenge.placeId.placeName,
                 "isChallenged": attempt is not None,
                 "challengePhoto": attempt.attemptImage.url if attempt else None,
                 "location": challenge.placeId.location

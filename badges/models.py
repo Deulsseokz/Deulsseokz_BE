@@ -1,5 +1,6 @@
 from django.db import models
 from users.models import User
+from django.utils import timezone
 
 # Create your models here.
 class Badge(models.Model):
@@ -22,6 +23,7 @@ class UserBadge(models.Model):
     userBadgeId = models.BigAutoField(primary_key=True)
     userId = models.ForeignKey(User, on_delete=models.CASCADE, db_column='userId')
     badgeId = models.ForeignKey(Badge, on_delete=models.CASCADE, db_column='badgeId')
+    createdAt = models.DateTimeField(null=True, auto_now_add=True)
 
     class Meta:
         db_table = 'UserBadge'
