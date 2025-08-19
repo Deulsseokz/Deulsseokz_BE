@@ -5,14 +5,14 @@ from rest_framework import status
 from django.core.files.base import ContentFile
 from .models import User, Photo, Album, Place
 from .query_serializers import PlaceAlbumSerializer, PhotoSerializer
-from .serializers import PhotoRequestSerializer
+from .serializers import PhotoRequestSerializer, PhotoDeleteSerializer
 from utils.response_wrapper import api_response
 from rest_framework.parsers import MultiPartParser, FormParser
 logger = logging.getLogger(__name__)
 from django.conf import settings
 from urllib.parse import quote
 import requests
-
+from rest_framework.permissions import AllowAny
 # 유저 관련 import
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -178,7 +178,7 @@ class PhotoUploadFromUrlView(AuthedAPIView):
 
 class PhotoView(AuthedAPIView):
     # 사진 (설명) 추가
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def post(self, request):
         app_user = self.get_app_user(request)
@@ -267,24 +267,26 @@ class PhotoView(AuthedAPIView):
             status_code=status.HTTP_200_OK
         )
 
+    permission_classes = [AllowAny]
     # 사진 삭제 
     def delete(self, request):
         app_user = self.get_app_user(request)
 
-        query_serializer = PhotoSerializer(data=request.query_params)
-        query_serializer.is_valid(raise_exception=True)
-        photoId = query_serializer.validated_data['photoId']
+        serializer = PhotoDeleteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        photo_ids = serializer.validated_data['photoIds']
+        photos = Photo.objects.filter(pk__in=photo_ids, album__userId=app_user)
 
-        try:
-            deletePhoto = Photo.objects.get(photoId = photoId, album__userId=app_user)
-        except Photo.DoesNotExist:
-            logger.info(f"[FAILED DELETE PHOTO] photoId={photoId} not found")
-            return api_response(
-                code="PHOTO_INVALID",
-                message="존재하지 않는 사진입니다."
-            )
+        if not photos.exists():
+            return api_response({
+                "isSuccess": False,
+                "code": "PHOTO_INVALID",
+                "message": "존재하지 않는 사진입니다.",
+                "result": None
+            }, status=status.HTTP_404_NOT_FOUND)
 
-        deletePhoto.delete()
+        deleted_count, _ = photos.delete()
 
         return api_response(
             result=f"사진이 성공적으로 삭제되었습니다."
