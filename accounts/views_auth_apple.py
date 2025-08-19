@@ -121,24 +121,24 @@ class AppleSignInView(APIView):
 
             # 3) 앱 유저 1:1 보장
             #   3-1) 이미 연결된 AppUser가 있나?
-            app_user = AppUser.objects.filter(authUser=auth_user).first()
+            app_user = AppUser.objects.filter(auth=auth_user).first()
 
             if not app_user:
                 #   3-2) (선택) 레거시 행 백필 시도: userName이 fullName/username과 동일하고 아직 미연결인 경우
                 backfill_name = full_name or (email or auth_user.username)
                 app_user = AppUser.objects.filter(
-                    authUser__isnull=True, userName=backfill_name
+                    auth__isnull=True, userName=backfill_name
                 ).first()
 
             if app_user:
-                if app_user.authUser_id is None:
-                    app_user.authUser = auth_user
+                if app_user.auth_id is None:
+                    app_user.auth = auth_user
                     # profileImage가 비어 있고 나중에 채우고 싶다면 여기서 기본값/유지 선택
                     app_user.save(update_fields=["authUser"])
             else:
                 #   3-3) 새로 생성하면서 반드시 연결
                 app_user = AppUser.objects.create(
-                    authUser=auth_user,                  
+                    auth=auth_user,                  
                     userName=full_name or (email or auth_user.username),
                     profileImage=None,                          # 필요 시 기본 이미지 경로
                 )

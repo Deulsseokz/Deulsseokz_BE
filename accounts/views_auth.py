@@ -1,8 +1,7 @@
+import secrets
 from django.conf import settings
 from django.db import transaction
 from django.utils.text import slugify
-import secrets
-
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.views import APIView
@@ -13,10 +12,18 @@ from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
 from django.contrib.auth import get_user_model
-
-from users.models import User as AppUser  # 별칭 지정
+from users.models import User as AppUser
 
 AuthUser = get_user_model()
+
+def _build_unique_username(seed: str | None) -> str:
+    base = slugify((seed or "").split("@")[0]) or "user"
+    candidate = base
+    for _ in range(5):
+        if not AuthUser.objects.filter(username=candidate).exists():
+            return candidate
+        candidate = f"{base}-{secrets.randbelow(10000):04d}"
+    return f"{base}-{secrets.token_hex(3)}"
 
 def _tokens_payload(refresh: RefreshToken):
     access = refresh.access_token
@@ -26,16 +33,6 @@ def _tokens_payload(refresh: RefreshToken):
         "access_expires": int(access["exp"]),
         "refresh_expires": int(refresh["exp"]),
     }
-
-# 중복 방지
-def _build_unique_username(seed: str | None) -> str:
-    base = slugify((seed or "").split("@")[0]) or "user"
-    candidate = base
-    for _ in range(5):
-        if not AuthUser.objects.filter(username=candidate).exists():
-            return candidate
-        candidate = f"{base}-{secrets.randbelow(10000):04d}"
-    return f"{base}-{secrets.token_hex(3)}"
 
 @method_decorator(csrf_exempt, name="dispatch")
 class GoogleIdTokenLogin(APIView):
@@ -66,15 +63,11 @@ class GoogleIdTokenLogin(APIView):
                 defaults={"username": _build_unique_username(username_seed)},
             )
 
-            # 3) 앱 유저 1:1 보장
-            #    - 우선 authUser로 직접 조회
-            app_user = AppUser.objects.filter(authUser=auth_user).first()
-
+            # 3) 앱 유저 1:1 보장 (필드명: auth)
+            app_user = AppUser.objects.filter(auth=auth_user).first()
             if not app_user:
-                # 같은 사람의 기존 row가 있을 수 있으니(예: 선행 가입) 한 번 더 안전하게 탐색
-                # 기준이 없다면 새로 만든다 (userName, profileImage만 초기 세팅)
                 app_user = AppUser.objects.create(
-                    authUser=auth_user,  # ★ 핵심: 연결
+                    auth=auth_user,  # ★ 필드명 통일
                     userName=payload.get("name") or getattr(auth_user, "username", None),
                     profileImage=payload.get("picture"),
                 )
@@ -83,7 +76,7 @@ class GoogleIdTokenLogin(APIView):
         refresh = RefreshToken.for_user(auth_user)
         body = {
             "ok": True,
-            "isNew": created_auth,  # 인증 유저 기준
+            "isNew": created_auth,
             # "user": {
             #     "userId": app_user.userId,
             #     "userName": app_user.userName,
@@ -94,11 +87,10 @@ class GoogleIdTokenLogin(APIView):
         return Response(body, status=200)
 
 class RotateTokenView(APIView):
-    """리프레시 토큰으로 재발급"""
     permission_classes = [AllowAny]
 
     def post(self, request):
-        raw = request.data.get("refresh")  # ← 바디로 받음
+        raw = request.data.get("refresh")
         if not raw:
             return Response({"detail": "refresh required"}, status=400)
         try:
