@@ -14,18 +14,26 @@ from .query_serializers import ChallengeQuerySerializer
 from utils.response_wrapper import api_response
 logger = logging.getLogger(__name__)
 
-from rest_framework.permissions import AllowAny
+# 유저 관련 import
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.exceptions import NotFound, PermissionDenied
+
+# 유저 관련 공통 베이스 뷰
+class AuthedAPIView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_app_user(self, request) -> User:
+        try:
+            return User.objects.get(auth=request.user)
+        except User.DoesNotExist:
+            raise NotFound("연결된 사용자 프로필이 없습니다.")
 
 # 전체 챌린지 목록 조회
 class ChallengeListView(APIView):
-    permission_classes = [AllowAny]
     def get(self, request):
-        try: 
-            user = User.objects.get(userId=1)
-        except User.DoesNotExist:
-            return api_response(
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+        app_user = self.get_app_user(request)
         
         result = []
         challenges = Challenge.objects.all()
@@ -33,7 +41,7 @@ class ChallengeListView(APIView):
         for challenge in challenges:
             # 해당 유저의 성공한 도전 이력이 있는지 확인
             attempt = ChallengeAttempt.objects.filter(
-                userId=user,
+                userId=app_user,
                 challengeId=challenge,
                 attemptResult=True
             ).order_by('-attemptDate').first()
@@ -53,6 +61,8 @@ class ChallengeListView(APIView):
 # 챌린지 정보 조회
 class ChallengeInfoView(APIView):
     def get(self, request):
+        app_user = self.get_app_user(request)
+
         query_serializer = ChallengeQuerySerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
 
@@ -67,8 +77,6 @@ class ChallengeInfoView(APIView):
                 status_code=status.HTTP_400_BAD_REQUEST
             )
 
-        user = User.objects.get(userId=1)
-
         # Case 1: placeId 기반 단일 조회
         if placeId:
             challenges = Challenge.objects.select_related('placeId').filter(placeId__placeId=placeId)
@@ -81,7 +89,7 @@ class ChallengeInfoView(APIView):
                 )
 
             favorite_place_ids = set(
-                FavoritePlace.objects.filter(userId=user).values_list('placeId', flat=True)
+                FavoritePlace.objects.filter(userId=app_user).values_list('placeId', flat=True)
             )
 
             result = []
@@ -105,7 +113,7 @@ class ChallengeInfoView(APIView):
                 )
 
             favorite_place_ids = set(
-                FavoritePlace.objects.filter(userId=user).values_list('placeId', flat=True)
+                FavoritePlace.objects.filter(userId=app_user).values_list('placeId', flat=True)
             )
 
             result = []
@@ -129,6 +137,8 @@ def extract_conditions(*conditions):
 class ChallengeAttemptView(APIView):
     @swagger_auto_schema(request_body=ChallengeAttemptRequestSerializer)
     def post(self, request):
+        app_user = self.get_app_user(request)
+
         place = request.data.get('place')
         friends_list = request.data.get('friends', []) # 리스트 형식 지정
         attemptDate = request.data.get('attemptDate')
@@ -248,7 +258,7 @@ class ChallengeAttemptView(APIView):
         # 1. ChallengeAttempt
         attempt_instance = ChallengeAttempt.objects.create(
             challengeId= challenge, # 장소에서 연결
-            userId= User.objects.get(userId=1), # 유저 기본 설정(request.user)
+            userId= User.objects.get(userId=app_user), # 유저 기본 설정(request.user)
             attemptDate= attemptDate,
             # attemptImage= request.build_absolute_url(attemptImage.url),
             # attemptImage = attemptImage,
@@ -288,7 +298,7 @@ class ChallengeAttemptView(APIView):
 
         # 유저 도전 횟수 카운트
         attempt_count = ChallengeAttempt.objects.filter(
-            userId = User.objects.get(userId=1), # 유저 기본 설정(request.user)
+            userId = User.objects.get(userId=app_user), # 유저 기본 설정(request.user)
             challengeId__placeId = challenge.placeId
         ).count()
 

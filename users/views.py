@@ -14,6 +14,22 @@ from dj_rest_auth.registration.views import SocialLoginView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import redirect
 
+# 유저 관련 import
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.exceptions import NotFound, PermissionDenied
+
+# 유저 관련 공통 베이스 뷰
+class AuthedAPIView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_app_user(self, request) -> User:
+        try:
+            return User.objects.get(auth=request.user)
+        except User.DoesNotExist:
+            raise NotFound("연결된 사용자 프로필이 없습니다.")
+
 # 유저 정보 조회
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -25,43 +41,31 @@ class ProfileView(APIView):
         }
         return api_response(result=result)
 
-from rest_framework.permissions import AllowAny
 
 class MypageView(APIView):
-    permission_classes = [AllowAny]
     # 마이페이지 정보 조회
     def get(self, request):
-        try:
-            user = User.objects.get(userId=1)
-        except User.DoesNotExist:
-            return api_response(
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+        app_user = self.get_app_user(request)
         
         result = []
-        userName = user.userName
-        profileImage = user.profileImage
-        badgeId = user.representBadge
-        serializer = MypageInfoSerializer(user)
+        userName = app_user.userName
+        profileImage = app_user.profileImage
+        badgeId = app_user.representBadge
+        serializer = MypageInfoSerializer(app_user)
         result.append(serializer.data)
 
         return api_response(result=result)
     
     # 마이페이지 정보 수정
     def patch(self, request):
-        try:
-            user = User.objects.get(userId=1)
-        except User.DoesNotExist:
-            return api_response(
-                status_code=status.HTTP_404_NOT_FOUND
-            )
-        
+        app_user = self.get_app_user(request)
+
         # null 아닌 필드만 업데이트
         update_fields = ['userName', 'profileImage']
         for field in update_fields:
             if field in request.data and request.data[field] is not None:
-                setattr(user, field, request.data[field])
-        user.save()
+                setattr(app_user, field, request.data[field])
+        app_user.save()
 
         return api_response(
             result="유저 정보가 성공적으로 수정되었습니다.",
@@ -71,16 +75,11 @@ class MypageView(APIView):
 # 친구 목록 조회
 class FriendsListView(APIView):
     def get(self, request):
-        try: 
-            user = User.objects.get(userId=1)
-        except User.DoesNotExist:
-            return api_response(
-                status_code=status.HTTP_404_NOT_FOUND
-            )
-        
+        app_user = self.get_app_user(request)
+
         # 친구 요청의 양방향 모두 accepted된 친구 조회
         friendships = Friendship.objects.filter(
-            models.Q(requester=user) | models.Q(receiver=user),
+            models.Q(requester=app_user) | models.Q(receiver=app_user),
             status=Friendship.Status.ACCEPTED
         )
 
@@ -88,7 +87,7 @@ class FriendsListView(APIView):
         friend_names = []
 
         for f in friendships:
-            friend = f.receiver if f.requester == user else f.requester
+            friend = f.receiver if f.requester == app_user else f.requester
             friend_ids.append(friend.userId)
             friend_names.append(friend.userName)
 
