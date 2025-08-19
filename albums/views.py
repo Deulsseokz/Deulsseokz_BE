@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 from django.conf import settings
 from urllib.parse import quote
 import requests
+from collections import defaultdict
 from rest_framework.permissions import AllowAny
 # 유저 관련 import
 from rest_framework.permissions import IsAuthenticated
@@ -67,96 +68,74 @@ from rest_framework.permissions import AllowAny
 class PlaceAlbumPictureView(AuthedAPIView):
     permission_classes = [AllowAny]
     def get(self, request):
-        app_user = User.objects.get(userId=1)
         #app_user = self.get_app_user(request)
+        app_user = User.objects.get(userId=1)
 
         query_serializer = PlaceAlbumSerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
-        place = query_serializer.validated_data['place']
+        place_name = query_serializer.validated_data['place']
 
+        # 1) 장소 & 앨범 조회
         try:
-            place = Place.objects.get(placeName=place)
+            place = Place.objects.get(placeName=place_name)
         except Place.DoesNotExist:
             return api_response(
                 code="PLACE404",
                 message="해당 장소를 찾을 수 없습니다.",
-                status=status.HTTP_404_NOT_FOUND
+                status_code=status.HTTP_404_NOT_FOUND
             )
-        
-        try: 
-            album = Album.objects.get(userId=app_user, placeId=place)
+
+        try:
+            album = (Album.objects
+                     .select_related('representativePhotoId', 'placeId')
+                     .get(userId=app_user, placeId=place))
         except Album.DoesNotExist:
             return api_response(
                 code="ALBUM404",
                 message="앨범이 존재하지 않습니다.",
                 status_code=status.HTTP_404_NOT_FOUND
             )
-        
-        # 사진 일괄 조회
+
+        # 2) 앨범의 모든 사진 조회 (대표/일반 구분 없음)
         photos = list(
             Photo.objects.filter(album=album)
-            .only('photoId', 'photoUrl', 'feelings', 'weather', 'photoContent', 'date', 'album_id', 'challengeAttempt_id')
+            .select_related('challengeAttemptId')  # FK 미리 로드
+            .only('photoId', 'photoUrl', 'feelings', 'weather',
+                  'photoContent', 'date', 'challengeAttemptId_id')
         )
 
-        represent_photo = album.representativePhotoId  # 대표 사진(Nullable)
+        rep_pk = getattr(album.representativePhotoId, 'photoId', None)
 
-        # ---- people 매핑 준비 (N+1 방지) ----
-        # 사진들에 걸린 challengeAttempt_id 수집
-        attempt_ids = [p.challengeAttempt_id for p in photos if getattr(p, 'challengeAttempt_id', None)]
-        attempt_ids = list(set(attempt_ids))
-
-        # 관련 CAU 모두 모으기
-        # (앱 유저 필드가 'user'가 아닐 수도 있어 폴백 로직 준비)
-        cau_qs = ChallengeAttemptUser.objects.filter(challengeAttempt_id__in=attempt_ids)
-
-        # 가능하면 앱 유저를 select_related로 당겨오기
-        # 1) CAU.user -> users.User (앱 유저) 케이스
-        try:
-            cau_qs = cau_qs.select_related('user')
-            app_user_attr = 'user'
-            uses_auth_user = False
-        except Exception:
-            # 2) CAU.authUser -> auth user, 그리고 authUser.profile -> users.User (OneToOne) 케이스
-            cau_qs = cau_qs.select_related('authUser__profile')
-            app_user_attr = 'authUser__profile'
-            uses_auth_user = True
-
-        # attempt_id -> [앱 유저] 매핑
-        from collections import defaultdict
+        # 3) people 매핑 준비 (N+1 방지)
+        attempt_ids = list({p.challengeAttemptId_id for p in photos if p.challengeAttemptId_id})
         attempt_to_people = defaultdict(list)
 
-        for cau in cau_qs:
-            # 앱 유저 객체 얻기
-            if not uses_auth_user:
-                appu = getattr(cau, 'user', None)
-            else:
-                # authUser.profile 로 접근
-                appu = getattr(getattr(cau, 'authUser', None), 'profile', None)
+        if attempt_ids:
+            cau_qs = (ChallengeAttemptUser.objects
+                      .filter(challengeAttemptId__in=attempt_ids)
+                      .select_related('userId'))  # CAU.userId → users.User
 
-            if appu is None:
-                continue
+            for cau in cau_qs:
+                u = cau.userId
+                attempt_to_people[cau.challengeAttemptId_id].append({
+                    "id": u.userId,
+                    "name": u.userName,
+                    "uri": u.profileImage,
+                })
 
-            attempt_to_people[cau.challengeAttempt_id].append({
-                "id": appu.userId,
-                "name": appu.userName,
-                "uri": appu.profileImage,   # URL 없으면 None이 들어감
-            })
-
-        # ---- 응답 구성 ----
+        # 4) 응답 구성 (사진 단위)
         result = []
-        rep_pk = getattr(represent_photo, 'photoId', None)
-
-        for photo in photos:
-            people = attempt_to_people.get(getattr(photo, 'challengeAttempt_id', None), [])
-            result.append({
-                "url": str(photo.photoUrl) if photo.photoUrl else None,
-                "feelings": photo.feelings,
-                "weather": photo.weather,
-                "photoContent": photo.photoContent,
-                "date": photo.date,
-                "isFavorite": (photo.photoId == rep_pk),
-                "people": people,  # ← 추가
-            })
+        for p in photos:
+            item = {
+                "url": str(p.photoUrl) if p.photoUrl else None,
+                "feelings": p.feelings,
+                "weather": p.weather,
+                "photoContent": p.photoContent,
+                "date": p.date,
+                "isFavorite": (p.photoId == rep_pk),
+                "people": attempt_to_people.get(p.challengeAttemptId_id, []),
+            }
+            result.append(item)
 
         return api_response(result=result)
     
