@@ -8,7 +8,11 @@ from utils.response_wrapper import api_response
 logger = logging.getLogger(__name__)
 from django.conf import settings
 
-from rest_framework.permissions import AllowAny
+# 유저 관련 import
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.exceptions import NotFound, PermissionDenied
+
 # Create your views here.
 class BadgeView(APIView):
     permission_classes = [AllowAny]

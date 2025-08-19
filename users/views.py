@@ -14,6 +14,11 @@ from dj_rest_auth.registration.views import SocialLoginView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import redirect
 
+# 유저 관련 import
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.exceptions import NotFound, PermissionDenied
+
 # 유저 정보 조회
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]

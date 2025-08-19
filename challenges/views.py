@@ -14,7 +14,10 @@ from .query_serializers import ChallengeQuerySerializer
 from utils.response_wrapper import api_response
 logger = logging.getLogger(__name__)
 
-from rest_framework.permissions import AllowAny
+# 유저 관련 import
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.exceptions import NotFound, PermissionDenied
 
 # 전체 챌린지 목록 조회
 class ChallengeListView(APIView):

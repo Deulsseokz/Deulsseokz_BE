@@ -9,6 +9,11 @@ from django.conf import settings
 
 from datetime import date
 
+# 유저 관련 import
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.exceptions import NotFound, PermissionDenied
+
 class PointView(APIView):
     # 포인트 사용(획득 및 사용)
     def patch(self, request):

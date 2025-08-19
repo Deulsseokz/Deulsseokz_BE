@@ -8,6 +8,11 @@ from .serializers import favoritePlaceSerializer
 from utils.response_wrapper import api_response
 logger = logging.getLogger(__name__)
 
+# 유저 관련 import
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.exceptions import NotFound, PermissionDenied
+
 # 장소 지역 검색
 class PlaceAreaSearchView(APIView):
     def get(self, request):

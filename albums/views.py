@@ -13,6 +13,10 @@ from django.conf import settings
 from urllib.parse import quote
 import requests
 
+# 유저 관련 import
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.exceptions import NotFound, PermissionDenied
 
 # 앨범 목록 조회
 class AlbumListView(APIView):
