@@ -56,35 +56,38 @@ class GoogleIdTokenLogin(APIView):
         except Exception:
             return Response({"detail": "Invalid Google idToken"}, status=401)
 
-        # 2) auth 유저 조회/생성
         email = payload.get("email")
         username_seed = email or payload.get("sub")
 
         with transaction.atomic():
-            auth_user, created = AuthUser.objects.get_or_create(
+            # 2) 인증 유저 upsert
+            auth_user, created_auth = AuthUser.objects.get_or_create(
                 email=email,
                 defaults={"username": _build_unique_username(username_seed)},
             )
 
-            # 3) 신규라면 앱 유저(users.User)도 한 줄 생성
-            app_user_id = None
-            if created:
-                app_user = AppUser.objects.create(
-                    userName=payload.get("name") or auth_user.username,
-                    profileImage=payload.get("picture"),
-                    # representBadge는 처음엔 None
-                )
-                app_user_id = app_user.userId
+            # 3) 앱 유저 1:1 보장
+            #    - 우선 authUser로 직접 조회
+            app_user = AppUser.objects.filter(authUser=auth_user).first()
 
-        # 4) 자체 토큰 + isNew 포함해 반환
+            if not app_user:
+                # 같은 사람의 기존 row가 있을 수 있으니(예: 선행 가입) 한 번 더 안전하게 탐색
+                # 기준이 없다면 새로 만든다 (userName, profileImage만 초기 세팅)
+                app_user = AppUser.objects.create(
+                    authUser=auth_user,  # ★ 핵심: 연결
+                    userName=payload.get("name") or getattr(auth_user, "username", None),
+                    profileImage=payload.get("picture"),
+                )
+
+        # 4) 토큰 발급
         refresh = RefreshToken.for_user(auth_user)
         body = {
             "ok": True,
-            "isNew": created,  # 새 유저면 True, 기존이면 False
+            "isNew": created_auth,  # 인증 유저 기준
             # "user": {
-            #     "email": auth_user.email,
-            #     "username": getattr(auth_user, "username", None),
-            #     "userId": app_user_id,
+            #     "userId": app_user.userId,
+            #     "userName": app_user.userName,
+            #     "profileImage": app_user.profileImage,
             # },
         }
         body.update(_tokens_payload(refresh))
