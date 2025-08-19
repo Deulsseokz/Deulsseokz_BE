@@ -19,6 +19,17 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import NotFound, PermissionDenied
 
+# 유저 관련 공통 베이스 뷰
+class AuthedAPIView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_app_user(self, request) -> User:
+        try:
+            return User.objects.get(auth=request.user)
+        except User.DoesNotExist:
+            raise NotFound("연결된 사용자 프로필이 없습니다.")
+
 # 유저 정보 조회
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
