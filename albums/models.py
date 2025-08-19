@@ -29,6 +29,14 @@ class Photo(models.Model):
         max_length=2048
     )
 
+    # 추가: 이 사진이 어떤 도전 시도에 속하는지 (없을 수도 있으니 nullable)
+    challengeAttemptId = models.ForeignKey(
+        'challenges.ChallengeAttempt',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        db_column='challengeAttemptId',
+        related_name='photos',
+    )
 
     class Meta:
         db_table = 'Photo'

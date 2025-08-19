@@ -8,10 +8,12 @@ from drf_yasg import openapi
 from rest_framework.views import APIView
 from rest_framework import status
 from .models import User, Challenge, ChallengeAttempt, ChallengeAttemptUser
+from albums.models import Album, Photo
 from places.models import FavoritePlace
 from .serializers import ChallengeResponseSerializer, ChallengeAttemptRequestSerializer, ChallengeAttemptSerializer
 from .query_serializers import ChallengeQuerySerializer
 from utils.response_wrapper import api_response
+from django.db import transaction
 logger = logging.getLogger(__name__)
 
 # 유저 관련 import
@@ -255,71 +257,87 @@ class ChallengeAttemptView(AuthedAPIView):
                 break
 
         # DB 저장
-        # 1. ChallengeAttempt
-        attempt_instance = ChallengeAttempt.objects.create(
-            challengeId= challenge, # 장소에서 연결
-            userId= app_user, # 유저 기본 설정(request.user)
-            attemptDate= attemptDate,
-            # attemptImage= request.build_absolute_url(attemptImage.url),
-            # attemptImage = attemptImage,
-            resultComment= None, # 추후 수정
-            attemptResult = is_success
-        )
-        # 도전 사진 S3 업로드
-        attemptImage.seek(0)
-        image_content = attemptImage.read()  # bytes
-        image_file = ContentFile(image_content)
-        image_file.name = attemptImage.name  # 파일명 유지
-        attempt_instance.attemptImage.save(image_file.name, image_file, save=True)
-        serializer = ChallengeAttemptSerializer(attempt_instance)
+        # 트랜잭션 처리 추가
+        with transaction.atomic():
+            # 1. ChallengeAttempt
+            attempt_instance = ChallengeAttempt.objects.create(
+                challengeId= challenge, # 장소에서 연결
+                userId= app_user, # 유저 기본 설정(request.user)
+                attemptDate= attemptDate,
+                # attemptImage= request.build_absolute_url(attemptImage.url),
+                # attemptImage = attemptImage,
+                resultComment= None, # 추후 수정
+                attemptResult = is_success
+            )
+            # 도전 사진 S3 업로드
+            attemptImage.seek(0)
+            image_content = attemptImage.read()  # bytes
+            image_file = ContentFile(image_content)
+            image_file.name = attemptImage.name  # 파일명 유지
+            attempt_instance.attemptImage.save(image_file.name, image_file, save=True)
+            serializer = ChallengeAttemptSerializer(attempt_instance)
 
-        print("[DEBUG] image_file name:", image_file.name)
-        print("[DEBUG] instance path:", attempt_instance.attemptImage.name)
-        print("[DEBUG] S3 URL:", attempt_instance.attemptImage.url)
+            print("[DEBUG] image_file name:", image_file.name)
+            print("[DEBUG] instance path:", attempt_instance.attemptImage.name)
+            print("[DEBUG] S3 URL:", attempt_instance.attemptImage.url)
 
-        #2. ChallengeAttemptUser 
-        friends_ids = friends if friends else [ ]
-        for friend_id in friends_ids:
-            # try:
-            #     friend_user = User.objects.get(id=friend_id)
-            #     ChallengeAttemptUser.objects.create(
-            #         challengeAttemptId=attempt_instance,
-            #         userId=friend_user
-            #     )
-            # except User.DoesNotExist:
-            #     logger.warning(f"[WARNING] 친구 ID {friend_id}에 해당하는 유저 존재하지 않습니다.")
+            #2. ChallengeAttemptUser 
+            friends_ids = friends if friends else [ ]
+            for friend_id in friends_ids:
+                # try:
+                #     friend_user = User.objects.get(id=friend_id)
+                #     ChallengeAttemptUser.objects.create(
+                #         challengeAttemptId=attempt_instance,
+                #         userId=friend_user
+                #     )
+                # except User.DoesNotExist:
+                #     logger.warning(f"[WARNING] 친구 ID {friend_id}에 해당하는 유저 존재하지 않습니다.")
 
-            # 토큰 적용 전 예외 처리 제외
-            friend_user = User.objects.get(userId=friend_id)
-            ChallengeAttemptUser.objects.create(
-                challengeAttemptId=attempt_instance,
-                userId=friend_user
+                # 토큰 적용 전 예외 처리 제외
+                friend_user = User.objects.get(userId=friend_id)
+                ChallengeAttemptUser.objects.create(
+                    challengeAttemptId=attempt_instance,
+                    userId=friend_user
+                )
+
+            # 3) Photo 생성 + Attempt FK 연결
+            # 사용자-장소 앨범 확보 후, 시도 이미지를 Photo로도 저장하여 후속 앨범 조회에서 people을 붙일 수 있게 함
+            album, _ = Album.objects.get_or_create(
+                userId=app_user,
+                placeId=challenge.placeId,
+                defaults={"representativePhotoId": None}
+            )
+            Photo.objects.create(
+                album=album,
+                photoUrl=attempt_instance.attemptImage,   # FileField를 그대로 사용
+                date=attemptDate or None,
+                challengeAttemptId=attempt_instance,      # FK 세팅
             )
 
-        # 유저 도전 횟수 카운트
-        attempt_count = ChallengeAttempt.objects.filter(
-            userId = app_user, # 유저 기본 설정(request.user)
-            challengeId__placeId = challenge.placeId
-        ).count()
+            # 유저 도전 횟수 카운트
+            attempt_count = ChallengeAttempt.objects.filter(
+                userId = app_user, # 유저 기본 설정(request.user)
+                challengeId__placeId = challenge.placeId
+            ).count()
 
-        # 이번 도전은 몇 번째인지 (기존 도전 수 + 1)
-        current_attempt = attempt_count + 1
+            # 이번 도전은 몇 번째인지 (기존 도전 수 + 1)
+            current_attempt = attempt_count + 1
 
-        # 조건1: location과 일치 여부
-        condition1_pass = any(cond in location_result for cond in required_conditions)
+            # 조건1: location과 일치 여부
+            condition1_pass = any(cond in location_result for cond in required_conditions)
 
-        # 조건2: pose와 일치 여부
-        condition2_pass = any(cond in pose_result_str for cond in required_conditions)
+            # 조건2: pose와 일치 여부
+            condition2_pass = any(cond in pose_result_str for cond in required_conditions)
 
-        # 최종 성공 여부: 둘 다 만족해야 True
-        is_success = condition1_pass and condition2_pass
+            # 최종 성공 여부: 둘 다 만족해야 True
+            is_success = condition1_pass and condition2_pass
 
-        # 응답 반환
-        return api_response(
-            result={
-                "attemptResult": is_success,
-                "condition1": condition1_pass,  # 장소 조건 만족 여부
-                "condition2": condition2_pass,  # 포즈 조건 만족 여부
-                "attempt": current_attempt
-            }
-        )
+            # 응답 반환
+            return api_response(
+                result={
+                    "attemptResult": is_success,
+                    "condition1": condition1_pass,  # 장소 조건 만족 여부
+                    "condition2": condition2_pass,  # 포즈 조건 만족 여부
+                    "attempt": current_attempt
+                }
+            )
