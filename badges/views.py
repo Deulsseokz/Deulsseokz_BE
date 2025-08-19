@@ -26,17 +26,11 @@ class AuthedAPIView(APIView):
 
 # Create your views here.
 class BadgeView(APIView):
-    permission_classes = [AllowAny]
     # 획득 배지 조회
     def get(self, request):
-        try:
-            user = User.objects.get(userId=1)
-        except User.DoesNotExist:
-            return api_response(
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+        app_user = self.get_app_user(request)
         
-        user_badges = UserBadge.objects.filter(userId=user).select_related("badgeId")
+        user_badges = UserBadge.objects.filter(userId=app_user).select_related("badgeId")
 
         result = []
         for user_badge in user_badges:
@@ -47,7 +41,7 @@ class BadgeView(APIView):
                 "badgeImage": badge.badgeImage,
                 "condition": badge.condition,
                 "createdAt": user_badge.createdAt.strftime("%Y-%m-%d"),
-                "isRepresent": (user.representBadge_id == user_badge.pk)
+                "isRepresent": (app_user.representBadge_id == user_badge.pk)
             })
 
         return api_response(
@@ -56,12 +50,7 @@ class BadgeView(APIView):
     
     # 대표 배지 설정
     def patch(self, request):
-        try:
-            user = User.objects.get(userId=1)
-        except User.DoesNotExist:
-            return api_response(
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+        app_user = self.get_app_user(request)
         
         query_seriazlier = RepresentBadgeQuerySerializer(data=request.query_params)
         query_seriazlier.is_valid(raise_exception=True)
@@ -70,7 +59,7 @@ class BadgeView(APIView):
         # 유저가 보유하고 있는 배지인지 확인
         try:
             user_badge = UserBadge.objects.select_related("badgeId").get(
-                userId=user,
+                userId=app_user,
                 badgeId_id=badge_id, 
             )
         except UserBadge.DoesNotExist:
@@ -80,8 +69,8 @@ class BadgeView(APIView):
                         "message": "보유하지 않는 배지입니다."},
             )
         
-        user.representBadge = user_badge
-        user.save(update_fields=["representBadge"])
+        app_user.representBadge = user_badge
+        app_user.save(update_fields=["representBadge"])
 
         return api_response(
             result=f"{badge_id} 이/가 대표배지로 설정되었습니다."

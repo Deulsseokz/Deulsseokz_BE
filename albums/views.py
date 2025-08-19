@@ -18,17 +18,23 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import NotFound, PermissionDenied
 
-# 앨범 목록 조회
-class AlbumListView(APIView):
-    def get(self, request):
+# 유저 관련 공통 베이스 뷰
+class AuthedAPIView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_app_user(self, request) -> User:
         try:
-            user = User.objects.get(userId=1)
+            return User.objects.get(auth=request.user)
         except User.DoesNotExist:
-            return api_response(
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+            raise NotFound("연결된 사용자 프로필이 없습니다.")
+
+# 앨범 목록 조회
+class AlbumListView(AuthedAPIView):
+    def get(self, request):
+        app_user = self.get_app_user(request)
         
-        albums = Album.objects.filter(userId=user).select_related('placeId', 'representativePhotoId').prefetch_related('photos')
+        albums = Album.objects.filter(userId=app_user).select_related('placeId', 'representativePhotoId').prefetch_related('photos')
 
         if not albums.exists():
             return api_response(
@@ -57,13 +63,14 @@ class AlbumListView(APIView):
         )
     
 # 장소별 앨범 사진 조회
-class PlaceAlbumPictureView(APIView):
+class PlaceAlbumPictureView(AuthedAPIView):
     def get(self, request):
+        app_user = self.get_app_user(request)
+
         query_serializer = PlaceAlbumSerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
         place = query_serializer.validated_data['place']
 
-        user = User.objects.get(userId=1)
         try:
             place = Place.objects.get(placeName=place)
         except Place.DoesNotExist:
@@ -74,7 +81,7 @@ class PlaceAlbumPictureView(APIView):
             )
         
         try: 
-            album = Album.objects.get(userId=1, placeId=place)
+            album = Album.objects.get(userId=app_user, placeId=place)
         except Album.DoesNotExist:
             return api_response(
                 code="ALBUM404",
@@ -102,11 +109,13 @@ class PlaceAlbumPictureView(APIView):
             result=result
         )
     
-class PhotoUploadFromUrlView(APIView):
+class PhotoUploadFromUrlView(AuthedAPIView):
     parser_classes = [JSONParser]
 
     # url로 사진 추가
     def post(self, request):
+        app_user = self.get_app_user(request)
+
         place_name = request.data.get("place")
         photo_url = request.data.get("photo")
         photo_content = request.data.get("photoContent")
@@ -123,9 +132,8 @@ class PhotoUploadFromUrlView(APIView):
             )
 
         try:
-            user = User.objects.get(userId=1)
             place = Place.objects.get(placeName=place_name)
-            album = Album.objects.get(userId=user, placeId=place)
+            album = Album.objects.get(userId=app_user, placeId=place)
         except User.DoesNotExist:
             return api_response(code="USER404", message="사용자를 찾을 수 없습니다.", status_code=404)
         except Place.DoesNotExist:
@@ -168,11 +176,13 @@ class PhotoUploadFromUrlView(APIView):
             status_code=200
         )
 
-class PhotoView(APIView):
+class PhotoView(AuthedAPIView):
     # 사진 (설명) 추가
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
+        app_user = self.get_app_user(request)
+
         serializer = PhotoRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -195,9 +205,8 @@ class PhotoView(APIView):
             )
 
         try:
-            user = User.objects.get(userId=1) 
             place = Place.objects.get(placeName=place_name)
-            album = Album.objects.get(userId=user, placeId=place)
+            album = Album.objects.get(userId=app_user, placeId=place)
         except User.DoesNotExist:
             return api_response(code="USER404", message="사용자를 찾을 수 없습니다.", status_code=404)
         except Place.DoesNotExist:
@@ -231,11 +240,12 @@ class PhotoView(APIView):
     
     # 사진 (설명) 수정
     def patch(self, request):
-        user = User.objects.get(userId=1)
+        app_user = self.get_app_user(request)
+
         photoId = request.data.get('photoId')
         # 사진 조회
         try:
-            photo = Photo.objects.get(photoId=photoId, album__userId=user)
+            photo = Photo.objects.get(photoId=photoId, album__userId=app_user)
         except Photo.DoesNotExist:
             return api_response(
                 isSuccess=False,
@@ -259,12 +269,14 @@ class PhotoView(APIView):
 
     # 사진 삭제 
     def delete(self, request):
+        app_user = self.get_app_user(request)
+
         query_serializer = PhotoSerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
         photoId = query_serializer.validated_data['photoId']
 
         try:
-            deletePhoto = Photo.objects.get(photoId = photoId)
+            deletePhoto = Photo.objects.get(photoId = photoId, album__userId=app_user)
         except Photo.DoesNotExist:
             logger.info(f"[FAILED DELETE PHOTO] photoId={photoId} not found")
             return api_response(
@@ -279,14 +291,16 @@ class PhotoView(APIView):
         )
 
 # 대표 사진 설정
-class FavoritePhotoView(APIView):
+class FavoritePhotoView(AuthedAPIView):
     def patch(self, request):
+        app_user = self.get_app_user(request)
+
         query_serializer = PhotoSerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
         photoId = query_serializer.validated_data['photoId']
 
         try:
-            representPhoto = Photo.objects.get(photoId = photoId)
+            representPhoto = Photo.objects.get(photoId = photoId, album__userId=app_user)
         except Photo.DoesNotExist:
             return api_response(
                 code="PHOTO_INVALID",

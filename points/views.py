@@ -28,18 +28,13 @@ class AuthedAPIView(APIView):
 class PointView(APIView):
     # 포인트 사용(획득 및 사용)
     def patch(self, request):
-        try: 
-            user = User.objects.get(userId=1)
-        except User.DoesNotExist:
-            return api_response(
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+        app_user = self.get_app_user(request)
         
         # 오늘 날짜
         today_str = date.today().isoformat()
 
         # 오늘 날짜에 해당하는 포인트 객체 가져오거나 생성
-        point, created = Point.objects.get_or_create(userId=user, date=today_str)
+        point, created = Point.objects.get_or_create(userId=app_user, date=today_str)
 
         earned = request.data.get('pointEarned')
         used = request.data.get('pointUsed')
@@ -75,14 +70,9 @@ class PointView(APIView):
     
     # 포인트 이력 조회
     def get(self, request):
-        try: 
-            user = User.objects.get(userId=1)
-        except User.DoesNotExist:
-            return api_response(
-                status_code=status.HTTP_404_NOT_FOUND
-            )
-        
-        point_qs = Point.objects.filter(userId=user).order_by('date')
+        app_user = self.get_app_user(request)
+
+        point_qs = Point.objects.filter(userId=app_user).order_by('date')
 
         if not point_qs.exists():
             return api_response(result={
