@@ -42,7 +42,7 @@ class ProfileView(APIView):
         return api_response(result=result)
 
 
-class MypageView(APIView):
+class MypageView(AuthedAPIView):
     # 마이페이지 정보 조회
     def get(self, request):
         app_user = self.get_app_user(request)
@@ -73,7 +73,7 @@ class MypageView(APIView):
         )
 
 # 친구 목록 조회
-class FriendsListView(APIView):
+class FriendsListView(AuthedAPIView):
     def get(self, request):
         app_user = self.get_app_user(request)
 

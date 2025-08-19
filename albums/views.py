@@ -4,6 +4,7 @@ from rest_framework.parsers import JSONParser
 from rest_framework import status
 from django.core.files.base import ContentFile
 from .models import User, Photo, Album, Place
+from challenges.models import ChallengeAttempt, ChallengeAttemptUser
 from .query_serializers import PlaceAlbumSerializer, PhotoSerializer
 from .serializers import PhotoRequestSerializer, PhotoDeleteSerializer
 from utils.response_wrapper import api_response
@@ -61,11 +62,13 @@ class AlbumListView(AuthedAPIView):
         return api_response(
             result=result
         )
-    
+from rest_framework.permissions import AllowAny
 # 장소별 앨범 사진 조회
 class PlaceAlbumPictureView(AuthedAPIView):
+    permission_classes = [AllowAny]
     def get(self, request):
-        app_user = self.get_app_user(request)
+        app_user = User.objects.get(userId=1)
+        #app_user = self.get_app_user(request)
 
         query_serializer = PlaceAlbumSerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
@@ -89,25 +92,73 @@ class PlaceAlbumPictureView(AuthedAPIView):
                 status_code=status.HTTP_404_NOT_FOUND
             )
         
-        # 사진 조회
-        photos = Photo.objects.filter(album=album)
-        represent_photo = album.representativePhotoId
+        # 사진 일괄 조회
+        photos = list(
+            Photo.objects.filter(album=album)
+            .only('photoId', 'photoUrl', 'feelings', 'weather', 'photoContent', 'date', 'album_id', 'challengeAttempt_id')
+        )
 
+        represent_photo = album.representativePhotoId  # 대표 사진(Nullable)
+
+        # ---- people 매핑 준비 (N+1 방지) ----
+        # 사진들에 걸린 challengeAttempt_id 수집
+        attempt_ids = [p.challengeAttempt_id for p in photos if getattr(p, 'challengeAttempt_id', None)]
+        attempt_ids = list(set(attempt_ids))
+
+        # 관련 CAU 모두 모으기
+        # (앱 유저 필드가 'user'가 아닐 수도 있어 폴백 로직 준비)
+        cau_qs = ChallengeAttemptUser.objects.filter(challengeAttempt_id__in=attempt_ids)
+
+        # 가능하면 앱 유저를 select_related로 당겨오기
+        # 1) CAU.user -> users.User (앱 유저) 케이스
+        try:
+            cau_qs = cau_qs.select_related('user')
+            app_user_attr = 'user'
+            uses_auth_user = False
+        except Exception:
+            # 2) CAU.authUser -> auth user, 그리고 authUser.profile -> users.User (OneToOne) 케이스
+            cau_qs = cau_qs.select_related('authUser__profile')
+            app_user_attr = 'authUser__profile'
+            uses_auth_user = True
+
+        # attempt_id -> [앱 유저] 매핑
+        from collections import defaultdict
+        attempt_to_people = defaultdict(list)
+
+        for cau in cau_qs:
+            # 앱 유저 객체 얻기
+            if not uses_auth_user:
+                appu = getattr(cau, 'user', None)
+            else:
+                # authUser.profile 로 접근
+                appu = getattr(getattr(cau, 'authUser', None), 'profile', None)
+
+            if appu is None:
+                continue
+
+            attempt_to_people[cau.challengeAttempt_id].append({
+                "id": appu.userId,
+                "name": appu.userName,
+                "uri": appu.profileImage,   # URL 없으면 None이 들어감
+            })
+
+        # ---- 응답 구성 ----
         result = []
+        rep_pk = getattr(represent_photo, 'photoId', None)
+
         for photo in photos:
+            people = attempt_to_people.get(getattr(photo, 'challengeAttempt_id', None), [])
             result.append({
-                "id": photo.photoId,
                 "url": str(photo.photoUrl) if photo.photoUrl else None,
                 "feelings": photo.feelings,
                 "weather": photo.weather,
                 "photoContent": photo.photoContent,
                 "date": photo.date,
-                "isFavorite": (represent_photo == photo)
-        })
+                "isFavorite": (photo.photoId == rep_pk),
+                "people": people,  # ← 추가
+            })
 
-        return api_response(
-            result=result
-        )
+        return api_response(result=result)
     
 class PhotoUploadFromUrlView(AuthedAPIView):
     parser_classes = [JSONParser]

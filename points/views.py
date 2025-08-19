@@ -25,7 +25,7 @@ class AuthedAPIView(APIView):
         except User.DoesNotExist:
             raise NotFound("연결된 사용자 프로필이 없습니다.")
 
-class PointView(APIView):
+class PointView(AuthedAPIView):
     # 포인트 사용(획득 및 사용)
     def patch(self, request):
         app_user = self.get_app_user(request)
