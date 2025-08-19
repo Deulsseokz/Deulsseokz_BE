@@ -101,44 +101,58 @@ class AppleSignInView(APIView):
             return Response({"detail": "Invalid Apple identityToken"}, status=401)
 
         apple_sub = claims.get("sub")
-        email = claims.get("email")  # 최초 로그인 때만 내려올 수 있음
+        email = claims.get("email")  # 최초 로그인 때만 올 수 있음
         username_seed = email or f"apple-{apple_sub}"
+        full_name = request.data.get("fullName")
 
-        # 2) 우리 auth user 생성/조회
         with transaction.atomic():
+            # 2) 인증 유저 upsert
             if email:
-                auth_user, created = AuthUser.objects.get_or_create(
+                auth_user, created_auth = AuthUser.objects.get_or_create(
                     email=email,
                     defaults={"username": _build_unique_username(username_seed)},
                 )
             else:
-                auth_user, created = AuthUser.objects.get_or_create(
+                # 이메일이 안 오는 케이스(Private Relay 등)
+                auth_user, created_auth = AuthUser.objects.get_or_create(
                     username=_build_unique_username(username_seed),
                     defaults={"email": None},
                 )
 
-            # 3) 최초 가입이면 앱 유저(users.User)에도 한 줄 생성
-            app_user_id = None
-            if created:
+            # 3) 앱 유저 1:1 보장
+            #   3-1) 이미 연결된 AppUser가 있나?
+            app_user = AppUser.objects.filter(authUser=auth_user).first()
+
+            if not app_user:
+                #   3-2) (선택) 레거시 행 백필 시도: userName이 fullName/username과 동일하고 아직 미연결인 경우
+                backfill_name = full_name or (email or auth_user.username)
+                app_user = AppUser.objects.filter(
+                    authUser__isnull=True, userName=backfill_name
+                ).first()
+
+            if app_user:
+                if app_user.authUser_id is None:
+                    app_user.authUser = auth_user
+                    # profileImage가 비어 있고 나중에 채우고 싶다면 여기서 기본값/유지 선택
+                    app_user.save(update_fields=["authUser"])
+            else:
+                #   3-3) 새로 생성하면서 반드시 연결
                 app_user = AppUser.objects.create(
-                    userName=request.data.get("fullName")
-                             or email
-                             or auth_user.username,
-                    profileImage=None,   # 원하면 기본 이미지 경로
+                    authUser=auth_user,                  
+                    userName=full_name or (email or auth_user.username),
+                    profileImage=None,                          # 필요 시 기본 이미지 경로
                 )
-                app_user_id = app_user.userId
 
         # 4) 자체 토큰 발급 + isNew 포함해 JSON 반환
         refresh = RefreshToken.for_user(auth_user)
         body = {
             "ok": True,
-            "isNew": created,   # 신규면 True, 재로그인면 False
-            # 필요하면 유저 정보도 함께
+            "isNew": created_auth,  # 인증 유저 기준 신규 여부
             # "user": {
-            #     "email": auth_user.email,
-            #     "username": auth_user.username,
-            #     "userId": app_user_id,  # 신규 때만 값이 있을 수 있음
-            # }
+            #     "userId": app_user.userId,
+            #     "userName": app_user.userName,
+            #     "profileImage": app_user.profileImage,
+            # },
         }
         body.update(_tokens_payload(refresh))
         return Response(body, status=200)
