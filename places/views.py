@@ -25,7 +25,7 @@ class AuthedAPIView(APIView):
             raise NotFound("연결된 사용자 프로필이 없습니다.")
 
 # 장소 지역 검색
-class PlaceAreaSearchView(APIView):
+class PlaceAreaSearchView(AuthedAPIView):
     def get(self, request):
         # 토큰 필요 없는 API
 
@@ -47,7 +47,7 @@ class PlaceAreaSearchView(APIView):
             result={'place': list(places)}
         )
 
-class FavoritePlaceView(APIView):
+class FavoritePlaceView(AuthedAPIView):
     # 관심 장소 등록
     def post(self, request):
         app_user = self.get_app_user(request)

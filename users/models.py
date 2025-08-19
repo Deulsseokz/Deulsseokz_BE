@@ -4,7 +4,7 @@ from django.conf import settings
 class User(models.Model):
     userId = models.BigAutoField(primary_key=True)
 
-    authUser = models.OneToOneField(
+    auth = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="profile",     # auth_user.profile 로 접근 가능

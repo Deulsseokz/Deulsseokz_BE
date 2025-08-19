@@ -25,7 +25,7 @@ class AuthedAPIView(APIView):
             raise NotFound("연결된 사용자 프로필이 없습니다.")
 
 # Create your views here.
-class BadgeView(APIView):
+class BadgeView(AuthedAPIView):
     # 획득 배지 조회
     def get(self, request):
         app_user = self.get_app_user(request)

@@ -31,7 +31,7 @@ class AuthedAPIView(APIView):
             raise NotFound("연결된 사용자 프로필이 없습니다.")
 
 # 전체 챌린지 목록 조회
-class ChallengeListView(APIView):
+class ChallengeListView(AuthedAPIView):
     def get(self, request):
         app_user = self.get_app_user(request)
         
@@ -59,7 +59,7 @@ class ChallengeListView(APIView):
         )
 
 # 챌린지 정보 조회
-class ChallengeInfoView(APIView):
+class ChallengeInfoView(AuthedAPIView):
     def get(self, request):
         app_user = self.get_app_user(request)
 
@@ -134,7 +134,7 @@ def extract_conditions(*conditions):
     return extracted
 
 # 챌린지 도전
-class ChallengeAttemptView(APIView):
+class ChallengeAttemptView(AuthedAPIView):
     @swagger_auto_schema(request_body=ChallengeAttemptRequestSerializer)
     def post(self, request):
         app_user = self.get_app_user(request)
@@ -258,7 +258,7 @@ class ChallengeAttemptView(APIView):
         # 1. ChallengeAttempt
         attempt_instance = ChallengeAttempt.objects.create(
             challengeId= challenge, # 장소에서 연결
-            userId= User.objects.get(userId=app_user), # 유저 기본 설정(request.user)
+            userId= app_user, # 유저 기본 설정(request.user)
             attemptDate= attemptDate,
             # attemptImage= request.build_absolute_url(attemptImage.url),
             # attemptImage = attemptImage,
@@ -298,7 +298,7 @@ class ChallengeAttemptView(APIView):
 
         # 유저 도전 횟수 카운트
         attempt_count = ChallengeAttempt.objects.filter(
-            userId = User.objects.get(userId=app_user), # 유저 기본 설정(request.user)
+            userId = app_user, # 유저 기본 설정(request.user)
             challengeId__placeId = challenge.placeId
         ).count()
 
