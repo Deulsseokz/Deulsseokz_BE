@@ -12,6 +12,7 @@ from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
 from django.contrib.auth import get_user_model
+from rest_framework_simplejwt.settings import api_settings
 from users.models import User as AppUser
 
 AuthUser = get_user_model()
@@ -90,13 +91,29 @@ class RotateTokenView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        raw = request.data.get("refresh")
-        if not raw:
+        # request.data가 dict가 아닐 가능성 방어
+        raw = request.data.get("refresh") if isinstance(request.data, dict) else None
+        if not raw or not isinstance(raw, str):
             return Response({"detail": "refresh required"}, status=400)
+
         try:
-            old = RefreshToken(raw)
-            new = old.rotate()
+            old = RefreshToken(raw)  # 서명/만료 검증
+            if old.payload.get("token_type") != "refresh":
+                return Response({"detail": "not a refresh token"}, status=401)
+
+            user_id = old[api_settings.USER_ID_CLAIM]  # 기본 'user_id'
+            user = AuthUser.objects.get(pk=user_id)
+
+            # (옵션) 블랙리스트 사용 시 이전 refresh 폐기
+            try:
+                old.blacklist()  # token_blacklist 앱 및 설정이 있을 때만 동작
+            except Exception:
+                pass
+
+            new_refresh = RefreshToken.for_user(user)
+            return Response(_tokens_payload(new_refresh), status=200)
+
         except TokenError:
             return Response({"detail": "invalid refresh"}, status=401)
-
-        return Response(_tokens_payload(new), status=200)
+        except AuthUser.DoesNotExist:
+            return Response({"detail": "user not found"}, status=401)
