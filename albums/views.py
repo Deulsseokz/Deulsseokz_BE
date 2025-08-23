@@ -20,6 +20,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import NotFound, PermissionDenied
 
+from rest_framework.permissions import AllowAny
+
 # 유저 관련 공통 베이스 뷰
 class AuthedAPIView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -66,8 +68,10 @@ class AlbumListView(AuthedAPIView):
 
 # 장소별 앨범 사진 조회
 class PlaceAlbumPictureView(AuthedAPIView):
+    permission_classes = [AllowAny]
     def get(self, request):
-        app_user = self.get_app_user(request)
+        #app_user = self.get_app_user(request)
+        app_user = User.objects.get(userId=8)
 
         query_serializer = PlaceAlbumSerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
@@ -125,7 +129,7 @@ class PlaceAlbumPictureView(AuthedAPIView):
         result = []
         for p in photos:
             item = {
-                "url": str(p.photoUrl) if p.photoUrl else None,
+                "url": str(p.photoUrl.url) if p.photoUrl else None,
                 "feelings": p.feelings,
                 "weather": p.weather,
                 "photoContent": p.photoContent,
