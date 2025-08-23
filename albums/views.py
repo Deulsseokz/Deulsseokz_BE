@@ -20,8 +20,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import NotFound, PermissionDenied
 
-from rest_framework.permissions import AllowAny
-
 # 유저 관련 공통 베이스 뷰
 class AuthedAPIView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -35,10 +33,8 @@ class AuthedAPIView(APIView):
 
 # 앨범 목록 조회
 class AlbumListView(AuthedAPIView):
-    permission_classes = [AllowAny]
     def get(self, request):
-        #app_user = self.get_app_user(request)
-        app_user = User.objects.get(userId=8)
+        app_user = self.get_app_user(request)
         
         albums = Album.objects.filter(userId=app_user).select_related('placeId', 'representativePhotoId').prefetch_related('photos')
 
