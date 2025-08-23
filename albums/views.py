@@ -51,7 +51,7 @@ class AlbumListView(AuthedAPIView):
             photo_urls = []
             for photo in album.photos.all():
                 if photo.photoUrl:  # FileField 또는 ImageField라고 가정
-                    url = f"{(photo.photoUrl)}"
+                    url = photo.photoUrl.url
                     photo_urls.append(url)
 
             result.append({
@@ -63,13 +63,11 @@ class AlbumListView(AuthedAPIView):
         return api_response(
             result=result
         )
-from rest_framework.permissions import AllowAny
+
 # 장소별 앨범 사진 조회
 class PlaceAlbumPictureView(AuthedAPIView):
-    permission_classes = [AllowAny]
     def get(self, request):
-        #app_user = self.get_app_user(request)
-        app_user = User.objects.get(userId=1)
+        app_user = self.get_app_user(request)
 
         query_serializer = PlaceAlbumSerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
