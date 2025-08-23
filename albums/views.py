@@ -55,7 +55,7 @@ class AlbumListView(AuthedAPIView):
             photo_urls = []
             for photo in album.photos.all():
                 if photo.photoUrl:  # FileField 또는 ImageField라고 가정
-                    url = f"{(photo.photoUrl)}"
+                    url = photo.photoUrl.url
                     photo_urls.append(url)
 
             result.append({
