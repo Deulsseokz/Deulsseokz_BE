@@ -15,6 +15,7 @@ from .query_serializers import ChallengeQuerySerializer
 from utils.response_wrapper import api_response
 from django.db import transaction
 logger = logging.getLogger(__name__)
+from rest_framework.permissions import AllowAny
 
 # 유저 관련 import
 from rest_framework.permissions import IsAuthenticated
@@ -137,9 +138,11 @@ def extract_conditions(*conditions):
 
 # 챌린지 도전
 class ChallengeAttemptView(AuthedAPIView):
+    permission_classes = [AllowAny]
     @swagger_auto_schema(request_body=ChallengeAttemptRequestSerializer)
     def post(self, request):
-        app_user = self.get_app_user(request)
+        #app_user = self.get_app_user(request)
+        app_user = User.objects.get(userId=8)
 
         place = request.data.get('place')
         friends_list = request.data.get('friends', []) # 리스트 형식 지정
@@ -320,10 +323,10 @@ class ChallengeAttemptView(AuthedAPIView):
                     "condition1": condition1_pass,
                     "condition2": condition2_pass,
                     "attempt": current_attempt_for_me,
-                    "createdAttempts": {
-                        "ownerUserId": app_user.userId,
-                        "friendUserIds": [u.userId for u in valid_friend_users],
-                        "count": len(participant_users)
-                    }
+                    # "createdAttempts": {
+                    #     "ownerUserId": app_user.userId,
+                    #     "friendUserIds": [u.userId for u in valid_friend_users],
+                    #     "count": len(participant_users)
+                    # }
                 }
             )
