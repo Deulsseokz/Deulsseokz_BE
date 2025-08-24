@@ -96,4 +96,39 @@ class FriendsListView(AuthedAPIView):
                 "userId": friend_ids,
                 "friendsName": friend_names
             }
+        )# 친구 목록 조회
+class FriendsListView(AuthedAPIView):
+    def get(self, request):
+        app_user = self.get_app_user(request)
+
+        # 친구 요청의 양방향 모두 accepted된 친구 조회
+        friendships = Friendship.objects.filter(
+            models.Q(requester=app_user) | models.Q(receiver=app_user),
+            status=Friendship.Status.ACCEPTED
         )
+
+        friends = []
+        seen = set()  # 중복 방지 (혹시 양방향 레코드가 존재할 경우)
+
+        for f in friendships:
+            friend = f.receiver if f.requester_id == app_user.userId else f.requester
+            if friend.userId in seen:
+                continue
+            seen.add(friend.userId)
+
+            # profileImage 필드 안전 접근 (ImageField/URL/문자열 모두 커버)
+            profile_image = None
+            # profileImage
+            if hasattr(friend, 'profileImage') and getattr(friend, 'profileImage'):
+                try:
+                    profile_image = friend.profileImage.url  # ImageField인 경우
+                except Exception:
+                    profile_image = friend.profileImage  # 문자열/URL인 경우
+
+            friends.append({
+                "userId": friend.userId,
+                "friendsName": friend.userName,
+                "profileImage": profile_image
+            })
+
+        return api_response(result=friends)
