@@ -1,3 +1,4 @@
+import logging
 import json, time, requests
 import jwt
 from jwt import PyJWKClient
