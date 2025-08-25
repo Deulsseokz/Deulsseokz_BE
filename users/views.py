@@ -97,7 +97,8 @@ class FriendsListView(AuthedAPIView):
             friends.append({
                 "userId": friend.userId,
                 "friendsName": friend.userName,
-                "profileImage": profile_image
+                "profileImage": profile_image,
+                "isClose": f.closeFriend
             })
 
         return api_response(result=friends)
