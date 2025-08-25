@@ -182,3 +182,44 @@ class FriendView(AuthedAPIView):
             message="성공입니다.",
             status_code=status.HTTP_200_OK
         )
+    
+    # 친구 검색
+    def get(self, request):
+        app_user = self.get_app_user(request)
+        friend_name = (request.GET.get('friendName') or '').strip()
+
+        if not friend_name:
+            return api_response(
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 나와 수락된 친구 관계만 조회
+        friendships = Friendship.objects.filter(
+            (models.Q(requester=app_user) | models.Q(receiver=app_user)),
+            status=Friendship.Status.ACCEPTED
+        ).select_related('requester', 'receiver')
+
+        # 친구 유저만 뽑고 중복 제거
+        friends = []
+        seen = set()
+        for f in friendships:
+            friend = f.receiver if f.requester_id == app_user.userId else f.requester
+            if friend.userId in seen:
+                continue
+            seen.add(friend.userId)
+            friends.append(friend)
+
+        # 이름 부분일치(대소문자 무시) 필터
+        name_lower = friend_name.lower()
+        matched_ids = [
+            u.userId
+            for u in friends
+            if getattr(u, 'userName', '') and name_lower in u.userName.lower()
+        ]
+
+        # 스펙에 맞춰 단일 결과는 정수, 복수는 배열로 반환
+        result_value = matched_ids[0] if len(matched_ids) == 1 else matched_ids
+
+        return api_response(
+            result={"friendId": result_value}
+        )

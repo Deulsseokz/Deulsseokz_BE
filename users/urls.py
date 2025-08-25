@@ -22,4 +22,5 @@ urlpatterns = [
     path('info', MypageView.as_view()),
     path('', FriendsListView.as_view()),
     path('close', FriendView.as_view()),
+    path('search', FriendView.as_view()),
 ]
