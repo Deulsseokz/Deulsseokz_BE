@@ -13,7 +13,6 @@ from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from dj_rest_auth.registration.views import SocialLoginView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import redirect
-
 # 유저 관련 import
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -46,15 +45,8 @@ class MypageView(AuthedAPIView):
     # 마이페이지 정보 조회
     def get(self, request):
         app_user = self.get_app_user(request)
-        
-        result = []
-        userName = app_user.userName
-        profileImage = app_user.profileImage
-        badgeId = app_user.representBadge
         serializer = MypageInfoSerializer(app_user)
-        result.append(serializer.data)
-
-        return api_response(result=result)
+        return api_response(result=serializer.data)
     
     # 마이페이지 정보 수정
     def patch(self, request):
