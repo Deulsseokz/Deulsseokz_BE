@@ -7,6 +7,7 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from django.utils import timezone
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from google.oauth2 import id_token as google_id_token
@@ -14,6 +15,9 @@ from google.auth.transport import requests as google_requests
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.settings import api_settings
 from users.models import User as AppUser
+from badges.models import UserBadge, Badge
+
+logger = logging.getLogger(__name__)
 
 AuthUser = get_user_model()
 
@@ -68,10 +72,21 @@ class GoogleIdTokenLogin(APIView):
             app_user = AppUser.objects.filter(auth=auth_user).first()
             if not app_user:
                 app_user = AppUser.objects.create(
-                    auth=auth_user,  # ★ 필드명 통일
+                    auth=auth_user,  # 필드명 통일
                     userName=payload.get("name") or getattr(auth_user, "username", None),
                     profileImage=payload.get("picture"),
+                    representBadgeId=1, # 가입 시 첫 만남 배지 부여
                 )
+
+            # UserBadge에도 배지 1 부여
+            try:
+                starter_badge = Badge.objects.get(pk=1)
+                UserBadge.objects.get_or_create(
+                    userId=app_user,
+                    badgeId=starter_badge,
+                )
+            except Badge.DoesNotExist:
+                logger.warning("Badge(pk=1)가 존재하지 않아 UserBadge 부여를 건너뜀")
 
         # 4) 토큰 발급
         refresh = RefreshToken.for_user(auth_user)

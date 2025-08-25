@@ -9,9 +9,13 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from users.models import User as AppUser
+from badges.models import UserBadge, Badge
 
 AuthUser = get_user_model()
+
+logger = logging.getLogger(__name__)
 
 APPLE_ISS = "https://appleid.apple.com"
 APPLE_JWKS_URL = f"{APPLE_ISS}/auth/keys"
@@ -96,7 +100,18 @@ class AppleSignInView(APIView):
                     auth=auth_user,  # ★ 필드명 통일
                     userName=full_name or (email or auth_user.username),
                     profileImage=None,
+                    representBadgeId=1, # 가입 시 첫 만남 배지 부여
                 )
+
+            # UserBadge에도 배지 1 부여
+            try:
+                starter_badge = Badge.objects.get(pk=1)
+                UserBadge.objects.get_or_create(
+                    userId=app_user,
+                    badgeId=starter_badge,
+                )
+            except Badge.DoesNotExist:
+                logger.warning("Badge(pk=1)가 존재하지 않아 UserBadge 부여를 건너뜀")
 
         # 4) 토큰 발급
         refresh = RefreshToken.for_user(auth_user)
