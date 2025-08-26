@@ -4,6 +4,7 @@ from rest_framework import status
 from django.db import models
 from .models import User, Friendship
 from badges.models import Badge, UserBadge
+from challenges.models import ChallengeAttempt, ChallengeAttemptUser
 from .serializers import MypageInfoSerializer
 from utils.response_wrapper import api_response
 logger = logging.getLogger(__name__)
@@ -222,4 +223,81 @@ class FriendView(AuthedAPIView):
 
         return api_response(
             result={"friendId": result_value}
+        )
+    
+class FriendProfileView(AuthedAPIView):
+    # 친구 프로필 조회
+    def get(self, request):
+        app_user = self.get_app_user(request)
+
+        # 1) friendId 파라미터 검증
+        raw_friend_id = request.query_params.get("friendId")
+        if raw_friend_id is None or str(raw_friend_id).strip() == "":
+            return api_response(
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        friend_id = int(str(raw_friend_id).strip())
+
+        # 자기 자신 금지 예외처리
+        if friend_id == app_user.userId:
+            return api_response(
+                code="COMMON400",
+                message="본인 프로필은 이 API에서 조회할 수 없습니다.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 2) 친구 존재 확인
+        try:
+            friend = User.objects.get(userId=friend_id)
+        except User.DoesNotExist:
+            raise NotFound("해당 friendId의 유저가 없습니다.")
+
+        # 3) 친구 관계(수락됨) 확인
+        is_friend = Friendship.objects.filter(
+            (
+                models.Q(requester_id=app_user.userId, receiver_id=friend.userId)
+                | models.Q(receiver_id=app_user.userId, requester_id=friend.userId)
+            ),
+            status=Friendship.Status.ACCEPTED,
+        ).exists()
+
+        if not is_friend:
+            raise PermissionDenied("친구가 아니므로 조회할 수 없습니다.")
+
+        # 4) 프로필 이미지 안전 접근 (ImageField/URL/문자열 모두 커버)
+        profile_image = None
+        if hasattr(friend, "profileImage") and getattr(friend, "profileImage"):
+            try:
+                profile_image = friend.profileImage.url  # ImageField인 경우
+            except Exception:
+                profile_image = friend.profileImage  # 문자열/URL인 경우
+
+        # 5) withMe 계산: 같은 challengeAttempt에 나와 친구가 함께 참여한 고유 attempt 수
+        my_attempt_ids = ChallengeAttemptUser.objects.filter(
+            userId_id=app_user.userId
+        ).values_list("challengeAttemptId_id", flat=True)
+
+        with_me = (
+            ChallengeAttemptUser.objects.filter(
+                userId_id=friend.userId, challengeAttemptId_id__in=my_attempt_ids
+            )
+            .values_list("challengeAttemptId_id", flat=True)
+            .distinct()
+            .count()
+        )
+
+        # 6) friendSuccess 계산: 친구가 성공한 시도 수 (attemptResult=True)
+        friend_success = ChallengeAttempt.objects.filter(
+            userId_id=friend.userId, attemptResult=True
+        ).count()
+
+        result = {
+            "friendName": getattr(friend, "userName", None),  # 친구 이름
+            "profileImage": profile_image,
+            "withMe": with_me,
+            "friendSuccess": friend_success,
+        }
+
+        return api_response(
+            result=result
         )
