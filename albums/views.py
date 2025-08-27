@@ -14,11 +14,11 @@ from django.conf import settings
 from urllib.parse import quote
 import requests
 from collections import defaultdict
-from rest_framework.permissions import AllowAny
 # 유저 관련 import
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import NotFound, PermissionDenied
+
 
 # 유저 관련 공통 베이스 뷰
 class AuthedAPIView(APIView):
@@ -63,7 +63,7 @@ class AlbumListView(AuthedAPIView):
         return api_response(
             result=result
         )
-
+      
 # 장소별 앨범 사진 조회
 class PlaceAlbumPictureView(AuthedAPIView):
     def get(self, request):
@@ -296,7 +296,6 @@ class PhotoView(AuthedAPIView):
             status_code=status.HTTP_200_OK
         )
 
-    permission_classes = [AllowAny]
     # 사진 삭제 
     def delete(self, request):
         app_user = self.get_app_user(request)

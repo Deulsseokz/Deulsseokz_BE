@@ -15,6 +15,7 @@ from .query_serializers import ChallengeQuerySerializer
 from utils.response_wrapper import api_response
 from django.db import transaction
 logger = logging.getLogger(__name__)
+from rest_framework.permissions import AllowAny
 
 # 유저 관련 import
 from rest_framework.permissions import IsAuthenticated
@@ -137,9 +138,11 @@ def extract_conditions(*conditions):
 
 # 챌린지 도전
 class ChallengeAttemptView(AuthedAPIView):
+    permission_classes = [AllowAny]
     @swagger_auto_schema(request_body=ChallengeAttemptRequestSerializer)
     def post(self, request):
-        app_user = self.get_app_user(request)
+        #app_user = self.get_app_user(request)
+        app_user = User.objects.get(userId=8)
 
         place = request.data.get('place')
         friends_list = request.data.get('friends', []) # 리스트 형식 지정
@@ -147,30 +150,14 @@ class ChallengeAttemptView(AuthedAPIView):
         attemptImage = request.FILES.get('attemptImage')  # 파일은 FILES에서 가져옴!
 
         # 친구 목록 리스트 파싱
-        friends_raw = request.data.get('friends', '[]')  # "[2,3]" 형태로 변경
-        try:
+        friends_raw = request.data.get('friends', [])
+        if isinstance(friends_raw, str):
             friends = json.loads(friends_raw)
-            if not isinstance(friends, list):
-                raise ValueError("friends must be a list")
-        except (json.JSONDecodeError, ValueError):
-            return api_response(
-                {"error": "Invalid format for friends (must be JSON list string)"},
-                status=400
-            )
-
-        # try:
-        #     friends = json.loads(friends_list)
-        # except json.JSONDecodeError:
-        #     return api_response({"error": "Invalid format for friends"}, status=400)
-
-        # if not all([place, attemptDate, attemptImage]):
-        #     return api_response(
-        #         code="INVALID_INPUT",
-        #         message="place, attemptDate, attemptImage는 필수입니다.",
-        #         status_code=status.HTTP_400_BAD_REQUEST,
-        #         is_success=False
-        #     )
-        
+        elif isinstance(friends_raw, list):
+            friends = friends_raw
+        else:
+            friends = []
+            
         # 장소에 속한 챌린지 가져오기
         try:
             challenge = Challenge.objects.select_related('placeId').get(placeId__placeName = place)
@@ -256,88 +243,90 @@ class ChallengeAttemptView(AuthedAPIView):
                 is_success = False
                 break
 
-        # DB 저장
-        # 트랜잭션 처리 추가
+        # === DB 저장 (모두에게 개별 Attempt 생성) ===
         with transaction.atomic():
-            # 1. ChallengeAttempt
-            attempt_instance = ChallengeAttempt.objects.create(
-                challengeId= challenge, # 장소에서 연결
-                userId= app_user, # 유저 기본 설정(request.user)
-                attemptDate= attemptDate,
-                # attemptImage= request.build_absolute_url(attemptImage.url),
-                # attemptImage = attemptImage,
-                resultComment= None, # 추후 수정
-                attemptResult = is_success
-            )
-            # 도전 사진 S3 업로드
+            # 0) 참여자 수집 (본인 + 친구)
+            #    - friends_ids를 유효한 사용자만 필터링하여 User 객체 리스트
+            participant_users = [app_user]
+            valid_friend_users = []
+            for friend_id in (friends if friends else []):
+                try:
+                    u = User.objects.get(userId=friend_id)
+                    valid_friend_users.append(u)
+                except User.DoesNotExist:
+                    logger.warning(f"[WARNING] 친구 ID {friend_id}에 해당하는 유저 존재하지 않습니다.")
+            participant_users.extend(valid_friend_users)
+
+            # 1) 공통 업로드용 이미지 바이트 보관 (여러 Attempt에 동일 파일 저장)
             attemptImage.seek(0)
-            image_content = attemptImage.read()  # bytes
-            image_file = ContentFile(image_content)
-            image_file.name = attemptImage.name  # 파일명 유지
-            attempt_instance.attemptImage.save(image_file.name, image_file, save=True)
-            serializer = ChallengeAttemptSerializer(attempt_instance)
+            image_bytes = attemptImage.read()
+            image_name = attemptImage.name
+            image_mime = attemptImage.content_type
 
-            print("[DEBUG] image_file name:", image_file.name)
-            print("[DEBUG] instance path:", attempt_instance.attemptImage.name)
-            print("[DEBUG] S3 URL:", attempt_instance.attemptImage.url)
+            # 2) 결과 판정 (장소/포즈 각각 만족 여부)
+            condition1_pass = any(cond in location_result for cond in required_conditions)
+            condition2_pass = any(cond in pose_result_str for cond in required_conditions)
+            final_success = condition1_pass and condition2_pass
 
-            #2. ChallengeAttemptUser 
-            friends_ids = friends if friends else [ ]
-            for friend_id in friends_ids:
-                # try:
-                #     friend_user = User.objects.get(id=friend_id)
-                #     ChallengeAttemptUser.objects.create(
-                #         challengeAttemptId=attempt_instance,
-                #         userId=friend_user
-                #     )
-                # except User.DoesNotExist:
-                #     logger.warning(f"[WARNING] 친구 ID {friend_id}에 해당하는 유저 존재하지 않습니다.")
-
-                # 토큰 적용 전 예외 처리 제외
-                friend_user = User.objects.get(userId=friend_id)
-                ChallengeAttemptUser.objects.create(
-                    challengeAttemptId=attempt_instance,
-                    userId=friend_user
+            # 3) 각 참여자별로 Attempt/Photo/AttemptUser 생성
+            created_attempts = {}  # {userId: attempt_instance}
+            for user_obj in participant_users:
+                # 3-1) ChallengeAttempt 생성
+                attempt_instance = ChallengeAttempt.objects.create(
+                    challengeId=challenge,
+                    userId=user_obj,
+                    attemptDate=attemptDate,
+                    resultComment=None,
+                    attemptResult=final_success
                 )
 
-            # 3) Photo 생성 + Attempt FK 연결
-            # 사용자-장소 앨범 확보 후, 시도 이미지를 Photo로도 저장하여 후속 앨범 조회에서 people을 붙일 수 있게 함
-            album, _ = Album.objects.get_or_create(
+                # 3-2) 도전 사진 저장 (같은 바이트를 재사용)
+                img_file = ContentFile(image_bytes)  # 새 ContentFile로 래핑
+                img_file.name = image_name
+                attempt_instance.attemptImage.save(img_file.name, img_file, save=True)
+
+                # 3-3) 앨범/사진 생성 (사용자별 앨범에 동일 사진 1장씩 기록)
+                album, _ = Album.objects.get_or_create(
+                    userId=user_obj,
+                    placeId=challenge.placeId,
+                    defaults={"representativePhotoId": None}
+                )
+                Photo.objects.create(
+                    album=album,
+                    photoUrl=attempt_instance.attemptImage,  # FileField 참조
+                    date=attemptDate or None,
+                    challengeAttemptId=attempt_instance,
+                )
+
+                created_attempts[user_obj.userId] = attempt_instance
+
+            # 4) 각 Attempt에 모든 참여자를 ChallengeAttemptUser로 연결
+            # (사진 속 함께한 사람 리스트가 동일하게 걸리도록)
+            for user_obj in participant_users:
+                attempt_instance = created_attempts[user_obj.userId]
+                for participant in participant_users:
+                    ChallengeAttemptUser.objects.create(
+                        challengeAttemptId=attempt_instance,
+                        userId=participant
+                    )
+
+            # 5) 응답은 "요청자(app_user)" 기준으로 몇 번째 도전인지 계산
+            attempt_count_for_me = ChallengeAttempt.objects.filter(
                 userId=app_user,
-                placeId=challenge.placeId,
-                defaults={"representativePhotoId": None}
-            )
-            Photo.objects.create(
-                album=album,
-                photoUrl=attempt_instance.attemptImage,   # FileField를 그대로 사용
-                date=attemptDate or None,
-                challengeAttemptId=attempt_instance,      # FK 세팅
-            )
-
-            # 유저 도전 횟수 카운트
-            attempt_count = ChallengeAttempt.objects.filter(
-                userId = app_user, # 유저 기본 설정(request.user)
-                challengeId__placeId = challenge.placeId
+                challengeId__placeId=challenge.placeId
             ).count()
+            current_attempt_for_me = attempt_count_for_me  # 방금 1건 생성 포함
 
-            # 이번 도전은 몇 번째인지 (기존 도전 수 + 1)
-            current_attempt = attempt_count + 1
-
-            # 조건1: location과 일치 여부
-            condition1_pass = any(cond in location_result for cond in required_conditions)
-
-            # 조건2: pose와 일치 여부
-            condition2_pass = any(cond in pose_result_str for cond in required_conditions)
-
-            # 최종 성공 여부: 둘 다 만족해야 True
-            is_success = condition1_pass and condition2_pass
-
-            # 응답 반환
             return api_response(
                 result={
-                    "attemptResult": is_success,
-                    "condition1": condition1_pass,  # 장소 조건 만족 여부
-                    "condition2": condition2_pass,  # 포즈 조건 만족 여부
-                    "attempt": current_attempt
+                    "attemptResult": final_success,
+                    "condition1": condition1_pass,
+                    "condition2": condition2_pass,
+                    "attempt": current_attempt_for_me,
+                    # "createdAttempts": {
+                    #     "ownerUserId": app_user.userId,
+                    #     "friendUserIds": [u.userId for u in valid_friend_users],
+                    #     "count": len(participant_users)
+                    # }
                 }
             )

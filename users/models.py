@@ -38,6 +38,7 @@ class Friendship(models.Model):
         db_column='status'
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    closeFriend = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'Friendship'
