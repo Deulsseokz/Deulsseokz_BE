@@ -63,7 +63,7 @@ class AlbumListView(AuthedAPIView):
         return api_response(
             result=result
         )
-    
+      
 # 장소별 앨범 사진 조회
 class PlaceAlbumPictureView(AuthedAPIView):
     def get(self, request):
@@ -125,7 +125,8 @@ class PlaceAlbumPictureView(AuthedAPIView):
         result = []
         for p in photos:
             item = {
-                "url": str(p.photoUrl) if p.photoUrl else None,
+                "photoId": p.photoId,
+                "url": str(p.photoUrl.url) if p.photoUrl else None,
                 "feelings": p.feelings,
                 "weather": p.weather,
                 "photoContent": p.photoContent,
