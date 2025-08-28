@@ -46,3 +46,13 @@ class Friendship(models.Model):
 
     def __str__(self):
         return f"{self.requester} → {self.receiver} ({self.status})"
+    
+class FriendLink(models.Model):
+    issuer = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="friend_link"
+    )                        
+    code = models.CharField(max_length=32, unique=True) 
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "FriendLink"
