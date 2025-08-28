@@ -40,8 +40,8 @@ class Friendship(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     closeFriend = models.BooleanField(default=False)
 
-    user_small = models.BigIntegerField(editable=False, db_index=True)
-    user_large = models.BigIntegerField(editable=False, db_index=True)
+    user_small = models.BigIntegerField(editable=False, db_index=True, null=True)
+    user_large = models.BigIntegerField(editable=False, db_index=True, null=True)
 
     class Meta:
         db_table = 'Friendship'
