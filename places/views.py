@@ -2,6 +2,7 @@ import logging
 from rest_framework.views import APIView
 from rest_framework import status
 from .models import User, Place, FavoritePlace
+from challenges.models import ChallengeAttempt
 from challenges.models import ChallengeAttempt, ChallengeAttemptUser
 from .query_serializers import PlaceAreaSearchQuerySerializer, PlaceQuerySerializer
 from .serializers import favoritePlaceSerializer
@@ -121,4 +122,24 @@ class FavoritePlaceView(AuthedAPIView):
         return api_response(
             count=len(response_list),
             result=response_list
+        )
+
+class RecommendPlaceView(AuthedAPIView):
+    # 추천 장소 조회
+    def get(self, request):
+        app_user = self.get_app_user(request)
+
+        # 1) 유저가 이미 도전한 장소 ID 목록
+        attempted_place_ids = ChallengeAttempt.objects.filter(
+            userId=app_user
+        ).values_list("challengeId__placeId", flat=True)
+
+        # 2) 도전했던 장소 제외
+        # 장소 수가 많지 않은 경우 DB 랜덤 정렬로 6개 뽑기
+        candidates = Place.objects.exclude(placeId__in=attempted_place_ids).order_by("?")[:6]
+
+        result = [p.placeName for p in candidates]
+
+        return api_response(
+            result=result
         )
