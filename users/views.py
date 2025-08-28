@@ -1,8 +1,10 @@
 import logging
+import secrets
+import string
 from rest_framework.views import APIView
 from rest_framework import status
 from django.db import models
-from .models import User, Friendship
+from .models import User, Friendship, FriendLink
 from badges.models import Badge, UserBadge
 from challenges.models import ChallengeAttempt, ChallengeAttemptUser
 from .serializers import MypageInfoSerializer
@@ -15,10 +17,25 @@ from dj_rest_auth.registration.views import SocialLoginView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import redirect
 from django.db import transaction, models
+from django.conf import settings
+from django.shortcuts import get_object_or_404
 # 유저 관련 import
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import NotFound, PermissionDenied
+
+# 친구 요청 관련 함수
+def _generate_code(length: int = 12) -> str:
+    # 보안 난수 기반 Base62 코드
+    alphabet = string.digits + string.ascii_uppercase + string.ascii_lowercase
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+
+def _build_friend_url(request, code: str) -> str:
+    base = getattr(settings, "FRIEND_WEB_BASE_URL", None)
+    if base:
+        return f"{base.rstrip('/')}/i/f/{code}"
+    return request.build_absolute_uri(f"/i/f/{code}")
 
 # 유저 관련 공통 베이스 뷰
 class AuthedAPIView(APIView):
@@ -66,8 +83,8 @@ class MypageView(AuthedAPIView):
             status_code=status.HTTP_200_OK
         )
 
-# 친구 목록 조회
 class FriendsListView(AuthedAPIView):
+    # 친구 목록 조회
     def get(self, request):
         app_user = self.get_app_user(request)
 
@@ -225,6 +242,48 @@ class FriendView(AuthedAPIView):
             result={"friendId": result_value}
         )
     
+    # 친구 삭제
+    def delete(self, request):
+        app_user = self.get_app_user(request)
+
+        raw_friend_id = request.query_params.get("friendId")
+        if raw_friend_id is None or str(raw_friend_id).strip() == "":
+            return api_response(
+                code="COMMON400",
+                message="friendId가 필요합니다.",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            friend_id = int(str(raw_friend_id).strip())
+        except ValueError:
+            return api_response(
+                code="COMMON400",
+                message="friendId는 정수여야 합니다.",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 자기 자신 방지
+        if friend_id == app_user.userId:
+            return api_response(
+                code="COMMON400",
+                message="본인은 삭제할 수 없습니다.",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 무방향 키로 한 쌍을 특정
+        a, b = sorted([app_user.userId, friend_id])
+        qs = Friendship.objects.filter(user_small=a, user_large=b)
+
+        # 이미 친구가 아니어도 "삭제"는 멱등하게 성공 처리
+        deleted_count, _ = qs.delete()
+
+        return api_response(
+            code="COMMON200",
+            message="성공입니다.",
+            status_code=status.HTTP_200_OK
+        )
+    
 class FriendProfileView(AuthedAPIView):
     # 친구 프로필 조회
     def get(self, request):
@@ -300,4 +359,71 @@ class FriendProfileView(AuthedAPIView):
 
         return api_response(
             result=result
+        )
+    
+class FriendLinkMeView(AuthedAPIView):
+    # 친구 요청
+    def get(self, request):
+        app_user = self.get_app_user(request)
+
+        link, created = FriendLink.objects.get_or_create(
+            issuer=app_user,
+            defaults={"code": _generate_code()}
+        )
+        url = _build_friend_url(request, link.code)
+        return api_response(
+            result={"url": url},
+            status_code=status.HTTP_200_OK
+        )
+
+
+class FriendLinkOpenView(AuthedAPIView):
+    @transaction.atomic
+    # 친구 수락
+    def post(self, request):
+        app_user = self.get_app_user(request)
+        code = (request.data or {}).get("code")
+        if not code:
+            return api_response(
+                code="FRIEND400_MISSING_CODE",
+                message="code 값이 필요합니다.",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        link = get_object_or_404(FriendLink, code=code)
+        issuer: User = link.issuer
+        opener: User = app_user
+
+        # 자기 자신 금지
+        if issuer.userId == opener.userId:
+            return api_response(
+                code="FRIEND400_SELF",
+                message="자기 자신 링크는 사용할 수 없습니다.",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 무방향 키로 멱등/동시성 보장
+        a, b = sorted([issuer.userId, opener.userId])
+        friendship, created = Friendship.objects.get_or_create(
+            user_small=a,
+            user_large=b,
+            defaults={
+                "requester_id": issuer.userId,   
+                "receiver_id": opener.userId,
+                "status": Friendship.Status.ACCEPTED,
+            },
+        )
+
+        # 기존 레코드가 pending이라면 accepted로 승격
+        if not created and friendship.status != Friendship.Status.ACCEPTED:
+            friendship.status = Friendship.Status.ACCEPTED
+            friendship.save(update_fields=["status"])
+
+        result_status = "AUTO_ACCEPT" if created else "ALREADY_FRIENDS"
+
+        return api_response(
+            result={
+                "status": result_status,
+            },
+            status_code=status.HTTP_200_OK
         )
