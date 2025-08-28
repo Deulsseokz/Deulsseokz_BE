@@ -25,4 +25,5 @@ urlpatterns = [
     path('search', FriendView.as_view()),
     path('invite', FriendLinkMeView.as_view()),
     path('invite/open', FriendLinkOpenView.as_view()),
+    path('delete', FriendView.as_view()), # 친구 삭제
 ]

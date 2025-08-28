@@ -242,6 +242,48 @@ class FriendView(AuthedAPIView):
             result={"friendId": result_value}
         )
     
+    # 친구 삭제
+    def delete(self, request):
+        app_user = self.get_app_user(request)
+
+        raw_friend_id = request.query_params.get("friendId")
+        if raw_friend_id is None or str(raw_friend_id).strip() == "":
+            return api_response(
+                code="COMMON400",
+                message="friendId가 필요합니다.",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            friend_id = int(str(raw_friend_id).strip())
+        except ValueError:
+            return api_response(
+                code="COMMON400",
+                message="friendId는 정수여야 합니다.",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 자기 자신 방지
+        if friend_id == app_user.userId:
+            return api_response(
+                code="COMMON400",
+                message="본인은 삭제할 수 없습니다.",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 무방향 키로 한 쌍을 특정
+        a, b = sorted([app_user.userId, friend_id])
+        qs = Friendship.objects.filter(user_small=a, user_large=b)
+
+        # 이미 친구가 아니어도 "삭제"는 멱등하게 성공 처리
+        deleted_count, _ = qs.delete()
+
+        return api_response(
+            code="COMMON200",
+            message="성공입니다.",
+            status_code=status.HTTP_200_OK
+        )
+    
 class FriendProfileView(AuthedAPIView):
     # 친구 프로필 조회
     def get(self, request):
