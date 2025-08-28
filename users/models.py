@@ -40,9 +40,32 @@ class Friendship(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     closeFriend = models.BooleanField(default=False)
 
+    user_small = models.BigIntegerField(editable=False, db_index=True)
+    user_large = models.BigIntegerField(editable=False, db_index=True)
+
     class Meta:
         db_table = 'Friendship'
-        unique_together = ('requester', 'receiver')  # 중복 요청 방지
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(user_small__lt=models.F('user_large')),
+                name='friendship_chk_order',
+            ),
+            models.UniqueConstraint(
+                fields=['user_small', 'user_large'],
+                name='friendship_uq_pair',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['status', 'user_small'], name='fx_status_small'),
+            models.Index(fields=['status', 'user_large'], name='fx_status_large'),
+        ]
+
+    def save(self, *args, **kwargs):
+        a, b = self.requester_id, self.receiver_id
+        if a == b:
+            raise ValueError("self friendship not allowed")
+        self.user_small, self.user_large = (a, b) if a < b else (b, a)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.requester} → {self.receiver} ({self.status})"
