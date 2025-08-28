@@ -63,33 +63,9 @@ class MypageView(AuthedAPIView):
             result="유저 정보가 성공적으로 수정되었습니다.",
             status_code=status.HTTP_200_OK
         )
-
-# 친구 목록 조회
+    
 class FriendsListView(AuthedAPIView):
-    def get(self, request):
-        app_user = self.get_app_user(request)
-
-        # 친구 요청의 양방향 모두 accepted된 친구 조회
-        friendships = Friendship.objects.filter(
-            models.Q(requester=app_user) | models.Q(receiver=app_user),
-            status=Friendship.Status.ACCEPTED
-        )
-
-        friend_ids = []
-        friend_names = []
-
-        for f in friendships:
-            friend = f.receiver if f.requester == app_user else f.requester
-            friend_ids.append(friend.userId)
-            friend_names.append(friend.userName)
-
-        return api_response(
-            result={
-                "userId": friend_ids,
-                "friendsName": friend_names
-            }
-        )# 친구 목록 조회
-class FriendsListView(AuthedAPIView):
+    # 친구 목록 조회
     def get(self, request):
         app_user = self.get_app_user(request)
 
