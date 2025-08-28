@@ -7,7 +7,7 @@ from albums.storages import PublicMediaStorage
 import uuid
 def album_photo_path(instance, filename):
     ext = filename.split('.')[-1]
-    return f"album-photos/{uuid.uuid4().hex}.{ext}"
+    return f"{uuid.uuid4().hex}.{ext}"
 
 class Photo(models.Model):
     photoId = models.BigAutoField(primary_key=True)
