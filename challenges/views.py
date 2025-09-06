@@ -17,8 +17,6 @@ from django.db import transaction
 from .tasks import process_challenge_attempt
 logger = logging.getLogger(__name__)
 
-from rest_framework.permissions import AllowAny
-
 # 유저 관련 import
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -132,11 +130,9 @@ class ChallengeInfoView(AuthedAPIView):
 
 # 챌린지 도전
 class ChallengeAttemptView(AuthedAPIView):
-    permission_classes = [AllowAny]
     @swagger_auto_schema(request_body=ChallengeAttemptRequestSerializer)
     def post(self, request):
-        #app_user = self.get_app_user(request)
-        app_user = User.objects.get(userId=7)
+        app_user = self.get_app_user(request)
 
         serializer = ChallengeAttemptRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
