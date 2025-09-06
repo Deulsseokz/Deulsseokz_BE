@@ -6,7 +6,7 @@ from django.db import transaction
 
 from .models import User, Challenge, ChallengeAttempt, ChallengeAttemptUser
 from albums.models import Album, Photo
-from .views import extract_conditions
+from .utils import extract_conditions
 
 logger = logging.getLogger(__name__)
 
