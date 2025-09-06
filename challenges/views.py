@@ -14,6 +14,7 @@ from .serializers import ChallengeResponseSerializer, ChallengeAttemptRequestSer
 from .query_serializers import ChallengeQuerySerializer
 from utils.response_wrapper import api_response
 from django.db import transaction
+from .tasks import process_challenge_attempt
 logger = logging.getLogger(__name__)
 
 # 유저 관련 import
@@ -126,14 +127,6 @@ class ChallengeInfoView(AuthedAPIView):
                 result.append(serializer.data)
 
             return api_response(result=result)
-    
-# 장소-챌린지 조건 추출
-def extract_conditions(*conditions):
-    extracted = []
-    for cond in conditions:
-        matches = re.findall(r'\[(.*?)\]', cond)
-        extracted.extend(matches)
-    return extracted
 
 # 챌린지 도전
 class ChallengeAttemptView(AuthedAPIView):
@@ -141,189 +134,45 @@ class ChallengeAttemptView(AuthedAPIView):
     def post(self, request):
         app_user = self.get_app_user(request)
 
-        place = request.data.get('place')
-        friends_list = request.data.get('friends', []) # 리스트 형식 지정
-        attemptDate = request.data.get('attemptDate')
-        attemptImage = request.FILES.get('attemptImage')  # 파일은 FILES에서 가져옴!
+        serializer = ChallengeAttemptRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        
+        place = data.get('place')
+        attemptImage = data.get('attemptImage')
+        attemptDate = data.get('attemptDate')
+        friend_ids = data.get('friends', []) # 친구 ID 리스트를 여기서 파싱합
 
-        # 친구 목록 리스트 파싱
-        friends_raw = request.data.get('friends', [])
-        if isinstance(friends_raw, str):
-            friends = json.loads(friends_raw)
-        elif isinstance(friends_raw, list):
-            friends = friends_raw
-        else:
-            friends = []
-            
-        # 장소에 속한 챌린지 가져오기
         try:
-            challenge = Challenge.objects.select_related('placeId').get(placeId__placeName = place)
+            challenge = Challenge.objects.get(placeId__placeName=place)
         except Challenge.DoesNotExist:
             return api_response(
                 code="CHALLENGE_NOT_FOUND",
                 message=f"장소 '{place}'에 해당하는 챌린지가 없습니다.",
-                status_code=status.HTTP_404_NOT_FOUND,
-                is_success=False
+                status_code=status.HTTP_404_NOT_FOUND
             )
 
-        # === FastAPI 호출 (포즈 분석) ===
-        fastapi_url = "http://13.125.101.75:8001/analyze/pose"
-        files = {
-            'file': (attemptImage.name, attemptImage.read(), attemptImage.content_type)
-        }
+        # "처리 대기중" 상태의 메인 레코드(요청자 기준)를 하나 생성
+        main_attempt = ChallengeAttempt.objects.create(
+            challengeId=challenge,
+            userId=app_user,
+            attemptImage=attemptImage,
+            attemptDate=attemptDate,
+            status=ChallengeAttempt.AttemptStatus.PENDING
+        )
 
-        try:
-            response = requests.post(fastapi_url, files=files)
-            response.raise_for_status()
-            pose_result = response.json()
-        except requests.exceptions.RequestException as e:
-            return api_response(
-                code="POSE_ANALYSIS_FAILED",
-                message="포즈 분석 실패",
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                is_success=False,
-                result={"error": str(e)}
-            )
-        
-        logger.info(f"[POSE ANALYSIS RESULT] {pose_result}")
+        # Celery Task 호출 시, 메인 시도 ID와 함께 친구 ID 리스트를 전달
+        process_challenge_attempt.delay(main_attempt.pk, friend_ids)
 
-        # 해당하는 장소의 조건 중 장소에 관련된 것과 포즈 분석한 결과를 비교 
-        # 조건 중에 find 함수 사용해 특정 단어 포함되어 있는 지 확인 해 추출 
+        logger.info(f"챌린지 시도 ID {main_attempt.pk} (친구 {len(friend_ids)}명 포함)가 큐에 추가됨.")
 
-        # === (장소 판별 호출) ===
-        fastapi_location_url = "http://13.125.101.75:8001/analyze/location"
-        location_payload = {
-            'candidates': place  # place가 string이라면 list로 감싸기
-        }
-
-        # attemptImage는 .read() 했기 때문에 다시 읽어야 함
-        attemptImage.seek(0) # 다시 읽도록 포인터 초기화
-        files['file'] = (attemptImage.name, attemptImage.read(), attemptImage.content_type)
-
-        try:
-            location_response = requests.post(fastapi_location_url, files=files, data=location_payload)
-            location_response.raise_for_status()
-            location_result = location_response.json()
-        except requests.exceptions.RequestException as e:
-            return api_response(
-                code="LOCATION_ANALYSIS_FAILED",
-                message="장소 판별 실패",
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                is_success=False,
-                result={"error": str(e)}
-            )
-                
-        logger.info(f"[LOCATION ANALYSIS RESULT] {location_result}")
-
-        # 조건 추출 후 검사
-        # pose_result_data = pose_result.get("results", [ ])
-        # pose_result_str = " "
-        # if pose_result_data and isinstance(pose_result_data, list):
-        pose_result_str = pose_result.get("pose", "").lower()
-
-        location_result = location_result.get("location", "")
-
-        logger.debug(f"[DEBUG] pose_result: {pose_result_str} (type: {type(pose_result_str)})")
-        logger.debug(f"[DEBUG] location_result: {location_result} (type: {type(location_result)})")
-
-        # 소문자로 변환
-        pose_result_str = pose_result_str.lower()
-        location_result = location_result.lower()
-
-        # condition1, condition2에서 필요한 키워드들 추출
-        required_conditions = [cond.lower() for cond in extract_conditions(challenge.condition1, challenge.condition2)]
-
-        is_success = True
-        for cond in required_conditions:
-            if cond not in pose_result_str and cond not in location_result:
-                logger.warning(f"[CONDITION FAIL] '{cond}'이 pose/location 결과에 없음")
-                is_success = False
-                break
-
-        # === DB 저장 (모두에게 개별 Attempt 생성) ===
-        with transaction.atomic():
-            # 0) 참여자 수집 (본인 + 친구)
-            #    - friends_ids를 유효한 사용자만 필터링하여 User 객체 리스트
-            participant_users = [app_user]
-            valid_friend_users = []
-            for friend_id in (friends if friends else []):
-                try:
-                    u = User.objects.get(userId=friend_id)
-                    valid_friend_users.append(u)
-                except User.DoesNotExist:
-                    logger.warning(f"[WARNING] 친구 ID {friend_id}에 해당하는 유저 존재하지 않습니다.")
-            participant_users.extend(valid_friend_users)
-
-            # 1) 공통 업로드용 이미지 바이트 보관 (여러 Attempt에 동일 파일 저장)
-            attemptImage.seek(0)
-            image_bytes = attemptImage.read()
-            image_name = attemptImage.name
-            image_mime = attemptImage.content_type
-
-            # 2) 결과 판정 (장소/포즈 각각 만족 여부)
-            condition1_pass = any(cond in location_result for cond in required_conditions)
-            condition2_pass = any(cond in pose_result_str for cond in required_conditions)
-            final_success = condition1_pass and condition2_pass
-
-            # 3) 각 참여자별로 Attempt/Photo/AttemptUser 생성
-            created_attempts = {}  # {userId: attempt_instance}
-            for user_obj in participant_users:
-                # 3-1) ChallengeAttempt 생성
-                attempt_instance = ChallengeAttempt.objects.create(
-                    challengeId=challenge,
-                    userId=user_obj,
-                    attemptDate=attemptDate,
-                    resultComment=None,
-                    attemptResult=final_success
-                )
-
-                # 3-2) 도전 사진 저장 (같은 바이트를 재사용)
-                img_file = ContentFile(image_bytes)  # 새 ContentFile로 래핑
-                img_file.name = image_name
-                attempt_instance.attemptImage.save(img_file.name, img_file, save=True)
-
-                # 3-3) 앨범/사진 생성 (사용자별 앨범에 동일 사진 1장씩 기록)
-                album, _ = Album.objects.get_or_create(
-                    userId=user_obj,
-                    placeId=challenge.placeId,
-                    defaults={"representativePhotoId": None}
-                )
-                Photo.objects.create(
-                    album=album,
-                    photoUrl=attempt_instance.attemptImage,  # FileField 참조
-                    date=attemptDate or None,
-                    challengeAttemptId=attempt_instance,
-                )
-
-                created_attempts[user_obj.userId] = attempt_instance
-
-            # 4) 각 Attempt에 모든 참여자를 ChallengeAttemptUser로 연결
-            # (사진 속 함께한 사람 리스트가 동일하게 걸리도록)
-            for user_obj in participant_users:
-                attempt_instance = created_attempts[user_obj.userId]
-                for participant in participant_users:
-                    ChallengeAttemptUser.objects.create(
-                        challengeAttemptId=attempt_instance,
-                        userId=participant
-                    )
-
-            # 5) 응답은 "요청자(app_user)" 기준으로 몇 번째 도전인지 계산
-            attempt_count_for_me = ChallengeAttempt.objects.filter(
-                userId=app_user,
-                challengeId__placeId=challenge.placeId
-            ).count()
-            current_attempt_for_me = attempt_count_for_me  # 방금 1건 생성 포함
-
-            return api_response(
-                result={
-                    "attemptResult": final_success,
-                    "condition1": condition1_pass,
-                    "condition2": condition2_pass,
-                    "attempt": current_attempt_for_me,
-                    # "createdAttempts": {
-                    #     "ownerUserId": app_user.userId,
-                    #     "friendUserIds": [u.userId for u in valid_friend_users],
-                    #     "count": len(participant_users)
-                    # }
-                }
-            )
+        # 사용자에게는 즉시 응답을 보냄
+        return api_response(
+            code="CHALLENGE_SUBMITTED",
+            message="챌린지 사진을 성공적으로 접수했습니다. 분석이 완료되면 알려드릴게요!",
+            status_code=status.HTTP_202_ACCEPTED,
+            result={
+                "attemptId": main_attempt.pk,
+                "status": "PENDING"
+            }
+        )
