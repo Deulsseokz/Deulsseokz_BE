@@ -69,25 +69,28 @@ class GoogleIdTokenLogin(APIView):
                 defaults={"username": _build_unique_username(username_seed)},
             )
 
-            # 3) 앱 유저 1:1 보장 (필드명: auth)
-            app_user = AppUser.objects.filter(auth=auth_user).first()
-            if not app_user:
-                app_user = AppUser.objects.create(
-                    auth=auth_user,  # 필드명 통일
-                    userName=payload.get("name") or getattr(auth_user, "username", None),
-                    profileImage=payload.get("picture"),
-                    representBadge_Id=1, # 가입 시 첫 만남 배지 부여
-                )
+            app_user, created_app_user = AppUser.objects.get_or_create(
+                auth=auth_user,
+                defaults={
+                    "userName": payload.get("name") or getattr(auth_user, "username", None),
+                    "profileImage": payload.get("picture"),
+                }
+            )
 
-            # UserBadge에도 배지 1 부여
-            try:
-                starter_badge = Badge.objects.get(pk=1)
-                UserBadge.objects.get_or_create(
-                    userId=app_user,
-                    badgeId=starter_badge,
-                )
-            except Badge.DoesNotExist:
-                logger.warning("Badge(pk=1)가 존재하지 않아 UserBadge 부여를 건너뜀")
+            # 신규 유저일 경우에만 뱃지 부여
+            if created_app_user:
+                try:
+                    starter_badge_info = Badge.objects.get(pk=1)
+                    # UserBadge 레코드 먼저 생성
+                    user_badge = UserBadge.objects.create(
+                        userId=app_user,
+                        badgeId=starter_badge_info,
+                    )
+                    # 생성된 UserBadge 객체를 대표 뱃지로 설정
+                    app_user.representBadge = user_badge
+                    app_user.save()
+                except Badge.DoesNotExist:
+                    logger.warning("Badge(pk=1)가 존재하지 않아 UserBadge 부여를 건너뜀")
 
         # 4) 토큰 발급
         refresh = RefreshToken.for_user(auth_user)
