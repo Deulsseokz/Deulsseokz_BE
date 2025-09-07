@@ -44,6 +44,18 @@ class ChallengeAttempt(models.Model):
     resultComment = models.CharField(max_length=255, null=True, blank=True)
     attemptResult = models.BooleanField(null=True)
 
+    class AttemptStatus(models.TextChoices):
+        PENDING = 'PENDING', '처리 대기중'
+        PROCESSING = 'PROCESSING', '처리중'
+        SUCCESS = 'SUCCESS', '성공'
+        FAILED = 'FAILED', '실패'
+
+    status = models.CharField(
+        max_length=15,
+        choices=AttemptStatus.choices,
+        default=AttemptStatus.PENDING
+    )
+
     class Meta:
         db_table = 'ChallengeAttempt'
 
