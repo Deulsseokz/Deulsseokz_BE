@@ -76,7 +76,7 @@ class GoogleIdTokenLogin(APIView):
                     auth=auth_user,  # 필드명 통일
                     userName=payload.get("name") or getattr(auth_user, "username", None),
                     profileImage=payload.get("picture"),
-                    representBadgeId=1, # 가입 시 첫 만남 배지 부여
+                    representBadge_Id=1, # 가입 시 첫 만남 배지 부여
                 )
 
             # UserBadge에도 배지 1 부여
