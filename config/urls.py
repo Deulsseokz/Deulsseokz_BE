@@ -33,6 +33,7 @@ schema_view = get_schema_view(
    ),
    public=True,
    permission_classes=[permissions.AllowAny],
+   authentication_classes=[],   
    url="https://melog.store",
 )
 
@@ -44,5 +45,11 @@ urlpatterns = [
     path('challenge/', include('challenges.urls')),
     path('place/', include('places.urls')),
     path('', include('albums.urls')), # 앨범 및 사진은 내부에서 처리 (다른 것은 이렇게 처리하면 안 됨)
+    path('mypage/', include('users.urls')),
     path('friends/', include('users.urls')),
+    path('point', include('points.urls')),
+    path('accounts/', include('allauth.urls')),  # allauth URL (google 포함)
+    path('mypage/', include('users.urls')),
+    path('auth/', include('accounts.urls')),
+    path('badge/', include('badges.urls')),
 ]

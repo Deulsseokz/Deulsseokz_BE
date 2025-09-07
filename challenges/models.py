@@ -40,9 +40,21 @@ class ChallengeAttempt(models.Model):
     attemptDate = models.CharField(max_length=255, null=True, blank=True)
     attemptImage = models.ImageField(upload_to=attempt_image_upload_path, 
                                      storage=PublicMediaStorage,
-                                     null=True, blank=True)
+                                     null=True, blank=True, max_length=2048)
     resultComment = models.CharField(max_length=255, null=True, blank=True)
     attemptResult = models.BooleanField(null=True)
+
+    class AttemptStatus(models.TextChoices):
+        PENDING = 'PENDING', '처리 대기중'
+        PROCESSING = 'PROCESSING', '처리중'
+        SUCCESS = 'SUCCESS', '성공'
+        FAILED = 'FAILED', '실패'
+
+    status = models.CharField(
+        max_length=15,
+        choices=AttemptStatus.choices,
+        default=AttemptStatus.PENDING
+    )
 
     class Meta:
         db_table = 'ChallengeAttempt'

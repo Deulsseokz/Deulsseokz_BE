@@ -20,3 +20,9 @@ class PhotoRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = Photo
         fields = ['photo', 'photoUrl', 'place', 'photoContent', 'feelings', 'weather', 'date']
+
+class PhotoDeleteSerializer(serializers.Serializer):
+    photoIds = serializers.ListField(
+        child=serializers.IntegerField(),
+        allow_empty=False
+    )

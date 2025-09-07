@@ -13,17 +13,30 @@ from places.models import FavoritePlace
 from .serializers import ChallengeResponseSerializer, ChallengeAttemptRequestSerializer, ChallengeAttemptSerializer
 from .query_serializers import ChallengeQuerySerializer
 from utils.response_wrapper import api_response
+from django.db import transaction
+from .tasks import process_challenge_attempt
 logger = logging.getLogger(__name__)
 
-# 전체 챌린지 목록 조회
-class ChallengeListView(APIView):
-    def get(self, request):
-        try: 
-            user = User.objects.get(userId=1)
+# 유저 관련 import
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.exceptions import NotFound, PermissionDenied
+
+# 유저 관련 공통 베이스 뷰
+class AuthedAPIView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_app_user(self, request) -> User:
+        try:
+            return User.objects.get(auth=request.user)
         except User.DoesNotExist:
-            return api_response(
-                status_code=status.HTTP_404_NOT_FOUND
-            )
+            raise NotFound("연결된 사용자 프로필이 없습니다.")
+
+# 전체 챌린지 목록 조회
+class ChallengeListView(AuthedAPIView):
+    def get(self, request):
+        app_user = self.get_app_user(request)
         
         result = []
         challenges = Challenge.objects.all()
@@ -31,14 +44,14 @@ class ChallengeListView(APIView):
         for challenge in challenges:
             # 해당 유저의 성공한 도전 이력이 있는지 확인
             attempt = ChallengeAttempt.objects.filter(
-                userId=user,
+                userId=app_user,
                 challengeId=challenge,
                 attemptResult=True
             ).order_by('-attemptDate').first()
 
             result.append({
                 "challengeId": challenge.challengeId,
-                "place": challenge.placeId.placeName,
+                "placeName": challenge.placeId.placeName,
                 "isChallenged": attempt is not None,
                 "challengePhoto": attempt.attemptImage.url if attempt else None,
                 "location": challenge.placeId.location
@@ -49,8 +62,10 @@ class ChallengeListView(APIView):
         )
 
 # 챌린지 정보 조회
-class ChallengeInfoView(APIView):
+class ChallengeInfoView(AuthedAPIView):
     def get(self, request):
+        app_user = self.get_app_user(request)
+
         query_serializer = ChallengeQuerySerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
 
@@ -65,8 +80,6 @@ class ChallengeInfoView(APIView):
                 status_code=status.HTTP_400_BAD_REQUEST
             )
 
-        user = User.objects.get(userId=1)
-
         # Case 1: placeId 기반 단일 조회
         if placeId:
             challenges = Challenge.objects.select_related('placeId').filter(placeId__placeId=placeId)
@@ -79,7 +92,7 @@ class ChallengeInfoView(APIView):
                 )
 
             favorite_place_ids = set(
-                FavoritePlace.objects.filter(userId=user).values_list('placeId', flat=True)
+                FavoritePlace.objects.filter(userId=app_user).values_list('placeId', flat=True)
             )
 
             result = []
@@ -103,7 +116,7 @@ class ChallengeInfoView(APIView):
                 )
 
             favorite_place_ids = set(
-                FavoritePlace.objects.filter(userId=user).values_list('placeId', flat=True)
+                FavoritePlace.objects.filter(userId=app_user).values_list('placeId', flat=True)
             )
 
             result = []
@@ -114,24 +127,14 @@ class ChallengeInfoView(APIView):
                 result.append(serializer.data)
 
             return api_response(result=result)
-    
-# 장소-챌린지 조건 추출
-def extract_conditions(*conditions):
-    extracted = []
-    for cond in conditions:
-        matches = re.findall(r'\[(.*?)\]', cond)
-        extracted.extend(matches)
-    return extracted
 
 # 챌린지 도전
-class ChallengeAttemptView(APIView):
+class ChallengeAttemptView(AuthedAPIView):
     @swagger_auto_schema(request_body=ChallengeAttemptRequestSerializer)
     def post(self, request):
-        place = request.data.get('place')
-        friends_list = request.data.get('friends', []) # 리스트 형식 지정
-        attemptDate = request.data.get('attemptDate')
-        attemptImage = request.FILES.get('attemptImage')  # 파일은 FILES에서 가져옴!
+        app_user = self.get_app_user(request)
 
+<<<<<<< HEAD
         # 친구 목록 리스트 파싱
         friends_raw = request.data.get('friends', '[]')  # "[2,3]" 형태로 변경
         try:
@@ -143,103 +146,35 @@ class ChallengeAttemptView(APIView):
                 {"error": "Invalid format for friends (must be JSON list string)"},
                 status=400
             )
+=======
+        serializer = ChallengeAttemptRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+>>>>>>> 2b08ec526b3d2908b321b878b150eb40eb102b53
         
-        # 장소에 속한 챌린지 가져오기
+        place = data.get('place')
+        attemptImage = data.get('attemptImage')
+        attemptDate = data.get('attemptDate')
+        friend_ids = data.get('friends', []) # 친구 ID 리스트를 여기서 파싱합
+
         try:
-            challenge = Challenge.objects.select_related('placeId').get(placeId__placeName = place)
+            challenge = Challenge.objects.get(placeId__placeName=place)
         except Challenge.DoesNotExist:
             return api_response(
                 code="CHALLENGE_NOT_FOUND",
                 message=f"장소 '{place}'에 해당하는 챌린지가 없습니다.",
-                status_code=status.HTTP_404_NOT_FOUND,
-                is_success=False
+                status_code=status.HTTP_404_NOT_FOUND
             )
 
-        # === FastAPI 호출 (포즈 분석) ===
-        fastapi_url = "http://13.125.101.75:8001/analyze/pose"
-        files = {
-            'file': (attemptImage.name, attemptImage.read(), attemptImage.content_type)
-        }
-
-        try:
-            response = requests.post(fastapi_url, files=files)
-            response.raise_for_status()
-            pose_result = response.json()
-        except requests.exceptions.RequestException as e:
-            return api_response(
-                code="POSE_ANALYSIS_FAILED",
-                message="포즈 분석 실패",
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                is_success=False,
-                result={"error": str(e)}
-            )
-        
-        logger.info(f"[POSE ANALYSIS RESULT] {pose_result}")
-
-        # 해당하는 장소의 조건 중 장소에 관련된 것과 포즈 분석한 결과를 비교 
-        # 조건 중에 find 함수 사용해 특정 단어 포함되어 있는 지 확인 해 추출 
-
-        # === (장소 판별 호출) ===
-        fastapi_location_url = "http://13.125.101.75:8001/analyze/location"
-        location_payload = {
-            'candidates': place  # place가 string이라면 list로 감싸기
-        }
-
-        # attemptImage는 .read() 했기 때문에 다시 읽어야 함
-        attemptImage.seek(0) # 다시 읽도록 포인터 초기화
-        files['file'] = (attemptImage.name, attemptImage.read(), attemptImage.content_type)
-
-        try:
-            location_response = requests.post(fastapi_location_url, files=files, data=location_payload)
-            location_response.raise_for_status()
-            location_result = location_response.json()
-        except requests.exceptions.RequestException as e:
-            return api_response(
-                code="LOCATION_ANALYSIS_FAILED",
-                message="장소 판별 실패",
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                is_success=False,
-                result={"error": str(e)}
-            )
-                
-        logger.info(f"[LOCATION ANALYSIS RESULT] {location_result}")
-
-        # 조건 추출 후 검사
-        # pose_result_data = pose_result.get("results", [ ])
-        # pose_result_str = " "
-        # if pose_result_data and isinstance(pose_result_data, list):
-        pose_result_str = pose_result.get("pose", "").lower()
-
-        location_result = location_result.get("location", "")
-
-        logger.debug(f"[DEBUG] pose_result: {pose_result_str} (type: {type(pose_result_str)})")
-        logger.debug(f"[DEBUG] location_result: {location_result} (type: {type(location_result)})")
-
-        # 소문자로 변환
-        pose_result_str = pose_result_str.lower()
-        location_result = location_result.lower()
-
-        # condition1, condition2에서 필요한 키워드들 추출
-        required_conditions = [cond.lower() for cond in extract_conditions(challenge.condition1, challenge.condition2)]
-
-        is_success = True
-        for cond in required_conditions:
-            if cond not in pose_result_str and cond not in location_result:
-                logger.warning(f"[CONDITION FAIL] '{cond}'이 pose/location 결과에 없음")
-                is_success = False
-                break
-
-        # DB 저장
-        # 1. ChallengeAttempt
-        attempt_instance = ChallengeAttempt.objects.create(
-            challengeId= challenge, # 장소에서 연결
-            userId= User.objects.get(userId=1), # 유저 기본 설정(request.user)
-            attemptDate= attemptDate,
-            # attemptImage= request.build_absolute_url(attemptImage.url),
-            # attemptImage = attemptImage,
-            resultComment= None, # 추후 수정
-            attemptResult = is_success
+        # "처리 대기중" 상태의 메인 레코드(요청자 기준)를 하나 생성
+        main_attempt = ChallengeAttempt.objects.create(
+            challengeId=challenge,
+            userId=app_user,
+            attemptImage=attemptImage,
+            attemptDate=attemptDate,
+            status=ChallengeAttempt.AttemptStatus.PENDING
         )
+<<<<<<< HEAD
         # 도전 사진 S3 업로드
         if is_success:
             attemptImage.seek(0)
@@ -252,19 +187,15 @@ class ChallengeAttemptView(APIView):
             print("[DEBUG] image_file name:", image_file.name)
             print("[DEBUG] instance path:", attempt_instance.attemptImage.name)
             print("[DEBUG] S3 URL:", attempt_instance.attemptImage.url)
+=======
 
-        #2. ChallengeAttemptUser 
-        friends_ids = friends if friends else [ ]
-        for friend_id in friends_ids:
-            # try:
-            #     friend_user = User.objects.get(id=friend_id)
-            #     ChallengeAttemptUser.objects.create(
-            #         challengeAttemptId=attempt_instance,
-            #         userId=friend_user
-            #     )
-            # except User.DoesNotExist:
-            #     logger.warning(f"[WARNING] 친구 ID {friend_id}에 해당하는 유저 존재하지 않습니다.")
+        # Celery Task 호출 시, 메인 시도 ID와 함께 친구 ID 리스트를 전달
+        process_challenge_attempt.delay(main_attempt.pk, friend_ids)
+>>>>>>> 2b08ec526b3d2908b321b878b150eb40eb102b53
 
+        logger.info(f"챌린지 시도 ID {main_attempt.pk} (친구 {len(friend_ids)}명 포함)가 큐에 추가됨.")
+
+<<<<<<< HEAD
             # 토큰 적용 전 예외 처리 제외
             friend_user = User.objects.get(userId=friend_id)
             ChallengeAttemptUser.objects.create(
@@ -327,11 +258,15 @@ class ChallengeAttemptView(APIView):
         is_success = condition1_pass and condition2_pass
 
         # 응답 반환
+=======
+        # 사용자에게는 즉시 응답을 보냄
+>>>>>>> 2b08ec526b3d2908b321b878b150eb40eb102b53
         return api_response(
+            code="CHALLENGE_SUBMITTED",
+            message="챌린지 사진을 성공적으로 접수했습니다. 분석이 완료되면 알려드릴게요!",
+            status_code=status.HTTP_202_ACCEPTED,
             result={
-                "attemptResult": is_success,
-                "condition1": condition1_pass,  # 장소 조건 만족 여부
-                "condition2": condition2_pass,  # 포즈 조건 만족 여부
-                "attempt": current_attempt
+                "attemptId": main_attempt.pk,
+                "status": "PENDING"
             }
         )

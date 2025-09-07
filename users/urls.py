@@ -15,8 +15,15 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.urls import path
-from .views import FriendsListView
+from .views import ProfileView, MypageView, FriendsListView, FriendView, FriendProfileView, FriendLinkMeView, FriendLinkOpenView
 
 urlpatterns = [
+    path('profile', ProfileView.as_view()),
+    path('info', MypageView.as_view()),
     path('', FriendsListView.as_view()),
+    path('close', FriendView.as_view()),
+    path('search', FriendView.as_view()),
+    path('invite', FriendLinkMeView.as_view()),
+    path('invite/open', FriendLinkOpenView.as_view()),
+    path('delete', FriendView.as_view()), # 친구 삭제
 ]

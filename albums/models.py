@@ -15,10 +15,7 @@ def album_photo_path(instance, filename):
         return name.strip().replace(" ", "_")
 
     ext = filename.split('.')[-1]
-    user_id = instance.album.userId.userId
-    place_name = sanitize_folder_name(instance.album.placeId.placeName)
-    return f"{user_id}/{place_name}/{uuid.uuid4().hex}.{ext}"
-
+    
 class Photo(models.Model):
     photoId = models.BigAutoField(primary_key=True)
     # albumId -> album으로 수정
@@ -35,9 +32,18 @@ class Photo(models.Model):
     photoUrl = models.ImageField(
         upload_to=album_photo_path,
         storage=PublicMediaStorage,
-        default='photos/default.jpg'
+        default='photos/default.jpg',
+        max_length=2048
     )
 
+    # 추가: 이 사진이 어떤 도전 시도에 속하는지 (없을 수도 있으니 nullable)
+    challengeAttemptId = models.ForeignKey(
+        'challenges.ChallengeAttempt',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        db_column='challengeAttemptId',
+        related_name='photos',
+    )
 
     class Meta:
         db_table = 'Photo'
