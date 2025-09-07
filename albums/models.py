@@ -4,11 +4,18 @@ from places.models import Place
 from albums.storages import PublicMediaStorage
 
 # Create your models here.
-import uuid
 def album_photo_path(instance, filename):
-    ext = filename.split('.')[-1]
-    return f"{uuid.uuid4().hex}.{ext}"
+    import uuid
+    import unicodedata
+    import re
 
+    def sanitize_folder_name(name: str) -> str:
+        name = unicodedata.normalize("NFKD", name)
+        name = re.sub(r"[^\w\s\-가-힣]", "", name)  # 한글 포함 허용
+        return name.strip().replace(" ", "_")
+
+    ext = filename.split('.')[-1]
+    
 class Photo(models.Model):
     photoId = models.BigAutoField(primary_key=True)
     # albumId -> album으로 수정
