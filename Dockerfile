@@ -16,6 +16,8 @@ COPY . /app
 RUN pip install --upgrade pip \
  && pip install -r requirements.txt
 
+RUN apt-get update && apt-get install -y netcat-traditional && rm -rf /var/lib/apt/lists/*
+
 EXPOSE 8000
 
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "config.wsgi:application", "--workers", "4", "--timeout", "120"]
