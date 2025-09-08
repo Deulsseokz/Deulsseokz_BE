@@ -2,20 +2,24 @@ from django.db import models
 from users.models import User
 from places.models import Place
 from albums.storages import PublicMediaStorage
+import uuid
+import unicodedata
+import re
 
 # Create your models here.
 def album_photo_path(instance, filename):
-    import uuid
-    import unicodedata
-    import re
-
     def sanitize_folder_name(name: str) -> str:
         name = unicodedata.normalize("NFKD", name)
-        name = re.sub(r"[^\w\s\-가-힣]", "", name)  # 한글 포함 허용
+        name = re.sub(r"[^\w\s\-가-힣]", "", name)
         return name.strip().replace(" ", "_")
 
+    user_id = instance.album.userId.userId
+    place_name = sanitize_folder_name(instance.album.placeId.placeName)
     ext = filename.split('.')[-1]
+    unique_filename = f"{uuid.uuid4()}.{ext}"
     
+    return f"{user_id}/{place_name}/{unique_filename}"
+
 class Photo(models.Model):
     photoId = models.BigAutoField(primary_key=True)
     # albumId -> album으로 수정
