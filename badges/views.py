@@ -69,7 +69,7 @@ class BadgeView(AuthedAPIView):
                         "message": "보유하지 않는 배지입니다."},
             )
         
-        app_user.representBadge = user_badge
+        app_user.representBadge = user_badge.badgeId
         app_user.save(update_fields=["representBadge"])
 
         return api_response(

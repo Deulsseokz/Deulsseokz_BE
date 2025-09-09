@@ -15,7 +15,7 @@ class User(models.Model):
     userName = models.CharField(max_length=255, null=True, blank=True)
     profileImage = models.CharField(max_length=500, null=True, blank=True, db_column='profileImage')
     representBadge = models.ForeignKey(
-        'badges.UserBadge', 
+        'badges.Badge', 
         related_name='representing_users', 
         on_delete=models.SET_NULL, # 뱃지가 삭제되어도 유저는 남도록 
         null=True
