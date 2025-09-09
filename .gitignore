@@ -32,3 +32,13 @@ __pycache__/
 *.pyo
 *.pyd
 *.egg-info/
+
+# Node dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build artifacts
+build/
+dist/
+*.js.map

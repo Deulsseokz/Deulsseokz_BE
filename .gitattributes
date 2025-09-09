@@ -1,0 +1,6 @@
+# static 폴더 안의 특정 JS 라이브러리들을 통계에서 제외
+static/js/jquery.min.js linguist-vendored
+static/js/bootstrap.bundle.min.js linguist-vendored
+
+# 또는 static 폴더 하위의 특정 폴더 전체를 제외
+static/vendor/ linguist-vendored
