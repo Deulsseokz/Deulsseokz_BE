@@ -350,11 +350,30 @@ class FriendProfileView(AuthedAPIView):
             userId_id=friend.userId, attemptResult=True
         ).count()
 
+        # 7) isClose: 친한 친구 여부 포함
+        # 친구 요청의 양방향 모두 accepted된 친구 조회
+        friendships = Friendship.objects.filter(
+            models.Q(requester=app_user) | models.Q(receiver=app_user),
+            status=Friendship.Status.ACCEPTED
+        )
+
+        friends = []
+        seen = set()  # 중복 방지 (혹시 양방향 레코드가 존재할 경우)
+
+        for f in friendships:
+            friend = f.receiver if f.requester_id == app_user.userId else f.requester
+            if friend.userId in seen:
+                continue
+            seen.add(friend.userId)
+
+        isClose = f.closeFriend
+
         result = {
             "friendName": getattr(friend, "userName", None),  # 친구 이름
             "profileImage": profile_image,
             "withMe": with_me,
             "friendSuccess": friend_success,
+            "isClose": isClose
         }
 
         return api_response(
