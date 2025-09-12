@@ -127,7 +127,7 @@ class FriendView(AuthedAPIView):
         app_user = self.get_app_user(request)
 
         add_id = request.data.get("add", None)
-        subtract_ids = request.data.get("subtract", None)
+        subtract_id = request.data.get("subtract", None) # 변수명을 단수형으로 변경
 
         # ---- 타입 보정: "7" -> 7 허용 ----
         def to_int_or_none(v):
@@ -140,16 +140,11 @@ class FriendView(AuthedAPIView):
             return None  # 잘못된 타입
 
         add_id = to_int_or_none(add_id)
-
-        if isinstance(subtract_ids, list):
-            subtract_ids = [to_int_or_none(x) for x in subtract_ids if to_int_or_none(x) is not None]
-        elif subtract_ids is None:
-            subtract_ids = []
-        else:
-            subtract_ids = [to_int_or_none(subtract_ids)] if to_int_or_none(subtract_ids) is not None else []
+        subtract_id = to_int_or_none(subtract_id) # 단일 값에 대해 타입 보정
 
         # 자기 자신 방지
-        subtract_ids = [i for i in subtract_ids if i != app_user.userId]
+        if subtract_id == app_user.userId:
+            subtract_id = None
         if add_id == app_user.userId:
             add_id = None
 
@@ -169,7 +164,10 @@ class FriendView(AuthedAPIView):
         )
 
         # subtract 우선
-        to_subtract = [uid for uid in subtract_ids if uid in accepted_friend_ids]
+        to_subtract = []
+        if subtract_id is not None and subtract_id in accepted_friend_ids:
+            to_subtract = [subtract_id]
+
         to_add = []
         if add_id is not None and add_id in accepted_friend_ids and add_id not in to_subtract:
             to_add = [add_id]
@@ -198,7 +196,6 @@ class FriendView(AuthedAPIView):
         return api_response(
             code="COMMON200",
             message="성공입니다.",
-            status_code=status.HTTP_200_OK
         )
     
     # 친구 검색
