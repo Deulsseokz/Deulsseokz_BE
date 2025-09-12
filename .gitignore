@@ -42,3 +42,6 @@ yarn.lock
 build/
 dist/
 *.js.map
+
+# Django static files collection directory
+staticfiles/
