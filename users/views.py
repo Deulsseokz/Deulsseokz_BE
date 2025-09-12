@@ -370,7 +370,8 @@ class FriendProfileView(AuthedAPIView):
             "profileImage": profile_image,
             "withMe": with_me,
             "friendSuccess": friend_success,
-            "isClose": isClose
+            "isClose": isClose,
+            "friendId": friend.userId
         }
 
         return api_response(
