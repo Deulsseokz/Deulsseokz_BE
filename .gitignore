@@ -49,5 +49,6 @@ staticfiles/
 # Secret files
 .secrets/
 
-# test HTML
+# test
 test_fcm.html
+firebase-messaging-sw.js
