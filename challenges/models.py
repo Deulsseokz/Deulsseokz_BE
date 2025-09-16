@@ -21,7 +21,7 @@ def user_place_attempt_path(instance, filename):
 class Challenge(models.Model):
     challengeId = models.BigAutoField(primary_key=True)
     placeId = models.ForeignKey(Place, on_delete=models.CASCADE, db_column='placeId')
-    point = models.CharField(null=True, blank=True)
+    point = models.CharField(max_length=255, null=True, blank=True)
     content = models.CharField(max_length=255, null=True, blank=True)
     condition1 = models.CharField(max_length=255, null=True, blank=True)
     condition2 = models.CharField(max_length=255, null=True, blank=True)
