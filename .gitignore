@@ -45,3 +45,10 @@ dist/
 
 # Django static files collection directory
 staticfiles/
+
+# Secret files
+.secrets/
+
+# test
+test_fcm.html
+firebase-messaging-sw.js

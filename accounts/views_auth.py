@@ -87,7 +87,7 @@ class GoogleIdTokenLogin(APIView):
                         badgeId=starter_badge_info,
                     )
                     # 생성된 UserBadge 객체를 대표 뱃지로 설정
-                    app_user.representBadge = user_badge
+                    app_user.representBadge = user_badge.badgeId
                     app_user.save()
                 except Badge.DoesNotExist:
                     logger.warning("Badge(pk=1)가 존재하지 않아 UserBadge 부여를 건너뜀")

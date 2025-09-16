@@ -52,4 +52,5 @@ urlpatterns = [
     path('mypage/', include('users.urls')),
     path('auth/', include('accounts.urls')),
     path('badge/', include('badges.urls')),
+    path('user/', include('users.urls')),
 ]
