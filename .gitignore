@@ -45,3 +45,6 @@ dist/
 
 # Django static files collection directory
 staticfiles/
+
+# Secret files
+.secrets/
