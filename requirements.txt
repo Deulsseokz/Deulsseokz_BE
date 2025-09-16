@@ -25,6 +25,7 @@ boto3
 # Others
 django-cors-headers
 python-dotenv
+python-decouple
 pillow
 
 # Firebase 
