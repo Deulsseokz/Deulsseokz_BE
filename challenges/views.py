@@ -9,12 +9,14 @@ from rest_framework.views import APIView
 from rest_framework import status
 from .models import User, Challenge, ChallengeAttempt, ChallengeAttemptUser
 from albums.models import Album, Photo
-from places.models import FavoritePlace
+from places.models import FavoritePlace, Place
 from .serializers import ChallengeResponseSerializer, ChallengeAttemptRequestSerializer, ChallengeAttemptSerializer
 from .query_serializers import ChallengeQuerySerializer
 from utils.response_wrapper import api_response
 from django.db import transaction
 from .tasks import process_challenge_attempt
+from django.db.models import Count, Case, When, F, FloatField
+from django.db.models.functions import Cast
 logger = logging.getLogger(__name__)
 
 # 유저 관련 import
@@ -175,3 +177,69 @@ class ChallengeAttemptView(AuthedAPIView):
                 "status": "PENDING"
             }
         )
+
+# 지역별 정복 현황
+class ChallengeLocalView(AuthedAPIView):
+    def get(self, request):
+        app_user = self.get_app_user(request)
+
+        area_name_map = {
+            "서울": "Seoul",
+            "인천": "Incheon",
+            "경기 서부": "Gyeonggi-West",
+            "경기 동부": "Gyeonggi-East",
+            "경기 북부": "Gyeonggi-North",
+            "경기 남부": "Gyeonggi-South",
+            "강원": "Gangwon",
+            "충북": "Chungbuk",
+            "충남": "Chungnam",
+            "전북": "Jeonbuk",
+            "광주・전남": "Gwangju-Jeonnam",
+            "대구・경북": "Daegu-Gyeongbuk",
+            "부산・울산・경남": "Busan-Ulsan-Gyeongnam",
+            "울릉도": "Ulleungdo",
+            "제주도": "Jejudo"
+        }
+
+        # 해당 유저의 지역별 통계 계산
+        # 1. 지역별로 존재하는 모든 챌린지의 총 개수를 계산
+        total_challenges_per_area = Challenge.objects.values(
+            'placeId__area' # 지역별로 그룹화
+        ).annotate(
+            total_count=Count('challengeId')
+        ).order_by()
+
+        # 딕셔너리 형태로 변환
+        total_counts = {
+            item['placeId__area']: item['total_count'] for item in total_challenges_per_area
+        }
+
+        # 2. 해당 유저가 각 지역별로 성공한 챌린지의 개수를 계산
+        successful_challenges_per_area = ChallengeAttempt.objects.filter(
+            userId=app_user,
+            status=ChallengeAttempt.AttemptStatus.SUCCESS
+        ).values(
+            'challengeId__placeId__area' # 지역별로 그룹화
+        ).annotate(
+            # challengeId를 기준으로 고유한 개수를 셈
+            successful_unique_count=Count('challengeId', distinct=True)
+        ).order_by()
+
+        # 딕셔너리 형태로 변환
+        success_counts = {
+            item['challengeId__placeId__area']: item['successful_unique_count'] for item in successful_challenges_per_area
+        }
+
+        # 3. 모든 지역을 포함하여 정복률 계산
+        result_data = {}
+        for korean_name, english_name in area_name_map.items():
+            total = total_counts.get(korean_name, 0) # 해당 지역의 전체 챌린지 수
+            successful = success_counts.get(korean_name, 0) # 해당 지역에서 성공한 고유 챌린지 수
+
+            if total > 0:
+                conquest_rate = (successful / total) * 100
+            else:
+                conquest_rate = 0
+            result_data[english_name] = round(conquest_rate, 2)
+
+        return api_response(result=result_data)
