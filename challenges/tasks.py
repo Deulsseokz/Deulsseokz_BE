@@ -94,7 +94,7 @@ def process_challenge_attempt(main_attempt_id, friend_ids):
 
         for user in participant_users:
             if user.fcm_token:
-                # 각자의 attemptId를 데이터 페이로드에 담아 보냅니다.
+                # 각자의 attemptId를 데이터 페이로드에 담아 보냄 (모든 챌린지 참여자에게 보냄)
                 user_attempt_id = created_attempts[user].pk
                 data = {"attemptId": str(user_attempt_id), "type": "challenge_result"}
                 send_fcm_notification(user.fcm_token, title, body, data)

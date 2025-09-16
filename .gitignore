@@ -48,3 +48,6 @@ staticfiles/
 
 # Secret files
 .secrets/
+
+# test HTML
+test_fcm.html
