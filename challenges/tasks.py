@@ -3,6 +3,7 @@ import logging
 from celery import shared_task
 from django.core.files.base import ContentFile
 from django.db import transaction
+from config.firebase import send_fcm_notification
 
 from .models import User, Challenge, ChallengeAttempt, ChallengeAttemptUser
 from albums.models import Album, Photo
@@ -86,9 +87,29 @@ def process_challenge_attempt(main_attempt_id, friend_ids):
         
         logger.info(f"챌린지 시도 ID {main_attempt_id}와 연결된 모든 참여자 처리 완료.")
 
+        # 결과 알림 발송
+        place_name = challenge.placeId.placeName
+        title = "챌린지 성공! 🎉" if final_success else "챌린지 실패 😢"
+        body = f"'{place_name}' 챌린지 결과가 도착했어요. 확인해보세요!"
+
+        for user in participant_users:
+            if user.fcm_token:
+                # 각자의 attemptId를 데이터 페이로드에 담아 보냅니다.
+                user_attempt_id = created_attempts[user].pk
+                data = {"attemptId": str(user_attempt_id), "type": "challenge_result"}
+                send_fcm_notification(user.fcm_token, title, body, data)
+
     except Exception as e:
         logger.error(f"챌린지 시도 ID {main_attempt_id} 처리 중 에러: {e}")
         if 'main_attempt' in locals():
             main_attempt.status = ChallengeAttempt.AttemptStatus.FAILED
             main_attempt.resultComment = str(e)
             main_attempt.save()
+
+            # 결과 알림 발송 
+            requester = main_attempt.userId
+            if requester.fcm_token:
+                title = "챌린지 처리 실패"
+                body = f"'{main_attempt.challengeId.placeId.placeName}' 챌린지 분석 중 오류가 발생했어요."
+                data = {"attemptId": str(main_attempt_id), "type": "challenge_result"}
+                send_fcm_notification(requester.fcm_token, title, body, data)
