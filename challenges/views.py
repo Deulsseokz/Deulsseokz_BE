@@ -243,3 +243,62 @@ class ChallengeLocalView(AuthedAPIView):
             result_data[english_name] = round(conquest_rate, 2)
 
         return api_response(result=result_data)
+    
+# 지역별 챌린지 현황 상세 조회
+class ChallengeStatusByRegionView(AuthedAPIView):
+    def get(self, request):
+        app_user = self.get_app_user(request)
+
+        area_name_map = {
+            "서울": "Seoul",
+            "인천": "Incheon",
+            "경기 서부": "Gyeonggi-West",
+            "경기 동부": "Gyeonggi-East",
+            "경기 북부": "Gyeonggi-North",
+            "경기 남부": "Gyeonggi-South",
+            "강원": "Gangwon",
+            "충북": "Chungbuk",
+            "충남": "Chungnam",
+            "전북": "Jeonbuk",
+            "광주・전남": "Gwangju-Jeonnam",
+            "대구・경북": "Daegu-Gyeongbuk",
+            "부산・울산・경남": "Busan-Ulsan-Gyeongnam",
+            "울릉도": "Ulleungdo",
+            "제주도": "Jejudo"
+        }
+
+        # 1. 현재 유저가 성공한 모든 챌린지 ID를 Set 형태로 조회
+        successful_challenge_ids = set(
+            ChallengeAttempt.objects.filter(
+                userId=app_user,
+                status=ChallengeAttempt.AttemptStatus.SUCCESS
+            ).values_list('challengeId_id', flat=True)
+        )
+
+        # 2. 모든 챌린지 정보를 미리 가져와서 지역별로 그룹화 (DB 호출 최소화)
+        # select_related를 사용하여 Place 정보까지 한 번의 쿼리로 가져옴
+        all_challenges = Challenge.objects.select_related('placeId').order_by('placeId__area')
+        
+        challenges_by_area = {}
+        for challenge in all_challenges:
+            # DB에 저장된 지역 이름을 키로 사용
+            area_key = challenge.placeId.area
+            if area_key not in challenges_by_area:
+                challenges_by_area[area_key] = []
+            
+            challenges_by_area[area_key].append({
+                "placeName": challenge.placeId.placeName,
+                "isCompleted": challenge.challengeId in successful_challenge_ids
+            })
+
+        result = []
+        for korean_name, english_name in area_name_map.items():
+            # 해당 지역에 할당된 챌린지 목록 없으면 빈 리스트를 사용
+            challenges_in_region = challenges_by_area.get(korean_name, [])
+            
+            result.append({
+                "regionName": english_name,
+                "challenges": challenges_in_region
+            })
+
+        return api_response(result=result)
