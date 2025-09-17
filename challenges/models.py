@@ -41,7 +41,7 @@ class ChallengeAttempt(models.Model):
     attemptImage = models.ImageField(upload_to=attempt_image_upload_path, 
                                      storage=PublicMediaStorage,
                                      null=True, blank=True, max_length=2048)
-    resultComment = models.CharField(max_length=255, null=True, blank=True)
+    resultComment = models.TextField(blank=True, null=True) 
     attemptResult = models.BooleanField(null=True)
     result_details = models.JSONField(null=True, blank=True)
 
