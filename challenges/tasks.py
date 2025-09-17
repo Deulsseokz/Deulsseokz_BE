@@ -1,7 +1,9 @@
 import requests
 import logging
+import json
 from celery import shared_task
 from django.core.files.base import ContentFile
+from django.conf import settings
 from django.db import transaction
 from config.firebase import send_fcm_notification
 
@@ -23,8 +25,42 @@ def process_challenge_attempt(main_attempt_id, friend_ids):
         main_attempt.save()
 
         # 2. FastAPI 분석 호출 (기존과 동일)
-        # ... 포즈 분석 및 장소 분석 코드 ...
-        final_success = True # 임시로 성공으로 가정
+        final_success = False # 기본값을 False로 설정
+        result_comment = ""   # 분석 결과 메시지
+
+        try:
+            # Django 설정(settings.py)에 AI 서버 주소를 정의하고 불러옵니다.
+            api_url = settings.FASTAPI_ANALYSIS_URL
+
+            # AI 서버로 보낼 데이터 준비
+            main_attempt.attemptImage.seek(0)
+            image_file_bytes = main_attempt.attemptImage.read()
+            
+            # 전송할 파일 데이터
+            files = {
+                'image': (main_attempt.attemptImage.name, image_file_bytes, 'image/jpeg')
+            }
+            # 전송할 챌린지 조건 데이터
+            conditions = extract_conditions(challenge)
+            data = {
+                'conditions_json': json.dumps(conditions) # 챌린지 조건을 JSON 문자열로 전달
+            }
+
+            # AI 서버에 POST 요청 (타임아웃 60초 설정)
+            response = requests.post(api_url, files=files, data=data, timeout=60)
+            response.raise_for_status()  # HTTP 에러 발생 시 예외 처리
+
+            # AI 서버로부터 받은 결과 처리
+            analysis_result = response.json()
+            final_success = analysis_result.get('success', False)
+            result_comment = analysis_result.get('message', 'AI 서버로부터 메시지가 없습니다.')
+            logger.info(f"AI 분석 결과 수신 (시도 ID: {main_attempt_id}): {analysis_result}")
+
+        except requests.RequestException as e:
+            # 네트워크 에러 또는 서버 응답 에러 처리
+            result_comment = f"AI 서버와 통신 중 오류가 발생했습니다: {e}"
+            logger.error(f"AI 서버 통신 오류 (시도 ID: {main_attempt_id}): {e}")
+            raise 
 
         # 3. 모든 참여자 User 객체 수집
         participant_users = [requester]
@@ -44,10 +80,13 @@ def process_challenge_attempt(main_attempt_id, friend_ids):
             # 4-1. 각 참여자별로 ChallengeAttempt, Album, Photo 레코드를 생성
             for user_obj in participant_users:
                 attempt_instance = None
+                # AI 분석 결과에 따라 성공/실패 상태를 동적으로 결정
+                attempt_status = ChallengeAttempt.AttemptStatus.SUCCESS if final_success else ChallengeAttempt.AttemptStatus.FAILURE
+
                 if user_obj.userId == requester.userId:
                     # 요청자는 기존 레코드를 업데이트
                     main_attempt.attemptResult = final_success
-                    main_attempt.status = ChallengeAttempt.AttemptStatus.SUCCESS
+                    main_attempt.status = attempt_status # 수정된 부분
                     main_attempt.save()
                     attempt_instance = main_attempt
                 else:
@@ -57,7 +96,7 @@ def process_challenge_attempt(main_attempt_id, friend_ids):
                         userId=user_obj,
                         attemptDate=main_attempt.attemptDate,
                         attemptResult=final_success,
-                        status=ChallengeAttempt.AttemptStatus.SUCCESS
+                        status=attempt_status # 수정된 부분
                     )
                     # 친구의 attempt 레코드에도 이미지 파일을 저장
                     img_file = ContentFile(image_bytes, name=image_name)
@@ -65,17 +104,18 @@ def process_challenge_attempt(main_attempt_id, friend_ids):
 
                 created_attempts[user_obj] = attempt_instance
 
-                # 각자의 앨범에 사진을 추가
-                album, _ = Album.objects.get_or_create(
-                    userId=user_obj,
-                    placeId=challenge.placeId
-                )
-                Photo.objects.create(
-                    album=album,
-                    photoUrl=attempt_instance.attemptImage,
-                    date=attempt_instance.attemptDate,
-                    challengeAttemptId=attempt_instance
-                )
+                # 각자의 앨범에 사진을 추가 (성공했을 경우에만)
+                if final_success:
+                    album, _ = Album.objects.get_or_create(
+                        userId=user_obj,
+                        placeId=challenge.placeId
+                    )
+                    Photo.objects.create(
+                        album=album,
+                        photoUrl=attempt_instance.attemptImage,
+                        date=attempt_instance.attemptDate,
+                        challengeAttemptId=attempt_instance
+                    )
 
             # 4-2. 각자의 ChallengeAttempt 레코드에 '함께 도전한 모든 사람' 정보를 연결
             for owner_obj, attempt_instance in created_attempts.items():
