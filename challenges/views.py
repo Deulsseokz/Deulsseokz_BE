@@ -302,3 +302,61 @@ class ChallengeStatusByRegionView(AuthedAPIView):
             })
 
         return api_response(result=result)
+    
+# 모든 챌린지별 성공 현황 조회 (key-value 반환)
+class ChallengeCompletionStatusView(AuthedAPIView):
+    def get(self, request):
+        app_user = self.get_app_user(request)
+
+        area_name_map = {
+            "서울": "Seoul",
+            "인천": "Incheon",
+            "경기 서부": "Gyeonggi-West",
+            "경기 동부": "Gyeonggi-East",
+            "경기 북부": "Gyeonggi-North",
+            "경기 남부": "Gyeonggi-South",
+            "강원": "Gangwon",
+            "충북": "Chungbuk",
+            "충남": "Chungnam",
+            "전북": "Jeonbuk",
+            "광주・전남": "Gwangju-Jeonnam",
+            "대구・경북": "Daegu-Gyeongbuk",
+            "부산・울산・경남": "Busan-Ulsan-Gyeongnam",
+            "울릉도": "Ulleungdo",
+            "제주도": "Jejudo"
+        }
+
+        # 1. 현재 유저가 성공한 모든 챌린지 ID를 Set 형태로 조회
+        successful_challenge_ids = set(
+            ChallengeAttempt.objects.filter(
+                userId=app_user,
+                status=ChallengeAttempt.AttemptStatus.SUCCESS
+            ).values_list('challengeId_id', flat=True)
+        )
+
+        # 2. 모든 챌린지 정보를 미리 가져와서 지역별 객체(Object)로 그룹화
+        all_challenges = Challenge.objects.select_related('placeId').order_by('placeId__area')
+        
+        challenges_by_area = {}
+        for challenge in all_challenges:
+            area_key = challenge.placeId.area
+            
+            # 해당 지역 키가 없으면 빈 객체로 초기화
+            if area_key not in challenges_by_area:
+                challenges_by_area[area_key] = {}
+            
+            # { "장소이름": 성공여부 } 형태의 Key-Value 쌍 추가
+            place_name = challenge.placeId.placeName
+            is_completed = challenge.challengeId in successful_challenge_ids
+            challenges_by_area[area_key][place_name] = is_completed
+
+        result = []
+        for korean_name, english_name in area_name_map.items():
+            challenges_object = challenges_by_area.get(korean_name, {})
+            
+            result.append({
+                "regionName": english_name,
+                "challenges": challenges_object
+            })
+
+        return api_response(result=result)
