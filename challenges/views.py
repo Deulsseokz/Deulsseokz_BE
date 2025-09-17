@@ -17,6 +17,7 @@ from django.db import transaction
 from .tasks import process_challenge_attempt
 from django.db.models import Count, Case, When, F, FloatField
 from django.db.models.functions import Cast
+from django.shortcuts import get_object_or_404
 logger = logging.getLogger(__name__)
 
 # 유저 관련 import
@@ -174,10 +175,47 @@ class ChallengeAttemptView(AuthedAPIView):
             status_code=status.HTTP_202_ACCEPTED,
             result={
                 "attemptId": main_attempt.pk,
-                "status": "PENDING"
+                "status": "PENDING",
+                "result_url": f"/challenge/result/{main_attempt.pk}/"
             }
         )
+# 챌린지 결과 조회 View (신규 클래스)
+class ChallengeResultView(AuthedAPIView):
+    def get(self, request, attempt_id):
+        app_user = self.get_app_user(request)
+        
+        # 본인의 챌린지 시도 기록만 조회 가능하도록 함
+        attempt = get_object_or_404(ChallengeAttempt, pk=attempt_id, userId=app_user)
+        
+        # 아직 분석 중인 경우
+        if attempt.status in [ChallengeAttempt.AttemptStatus.PENDING, ChallengeAttempt.AttemptStatus.PROCESSING]:
+            return api_response(
+                code="PROCESSING",
+                message="분석이 아직 진행 중입니다. 잠시 후 다시 시도해주세요.",
+                status_code=status.HTTP_202_ACCEPTED,
+                result={"status": attempt.status}
+            )
+        
+        # 분석이 완료된 경우, 요청한 최종 응답 형식으로 가공
+        # 이전 도전 횟수 계산
+        previous_attempts_count = ChallengeAttempt.objects.filter(
+            userId=app_user, 
+            challengeId=attempt.challengeId,
+            pk__lt=attempt.pk # 현재 시도보다 이전에 생성된 것만 카운트
+        ).count()
+        current_attempt_number = previous_attempts_count + 1
 
+        result_payload = {
+            "attemptResult": attempt.attemptResult,
+            "attempt": current_attempt_number,
+            "resultComment": attempt.resultComment,
+            # DB에 저장된 상세 결과를 사용
+            "condition1": attempt.result_details.get('condition1_met', False),
+            "condition2": attempt.result_details.get('condition2_met', False),
+        }
+
+        return api_response(result=result_payload)
+    
 # 지역별 정복 현황
 class ChallengeLocalView(AuthedAPIView):
     def get(self, request):
