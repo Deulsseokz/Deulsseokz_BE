@@ -43,6 +43,7 @@ class ChallengeAttempt(models.Model):
                                      null=True, blank=True, max_length=2048)
     resultComment = models.CharField(max_length=255, null=True, blank=True)
     attemptResult = models.BooleanField(null=True)
+    result_details = models.JSONField(null=True, blank=True)
 
     class AttemptStatus(models.TextChoices):
         PENDING = 'PENDING', '처리 대기중'
