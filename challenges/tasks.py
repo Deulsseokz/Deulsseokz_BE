@@ -40,7 +40,10 @@ def process_challenge_attempt(main_attempt_id, friend_ids):
             
             # utils 함수를 통해 키워드 리스트 추출
             condition_keywords = extract_conditions(challenge)
-            data = {'conditions': json.dumps(condition_keywords)} 
+            data = {
+                'conditions': json.dumps(condition_keywords),
+                'place_name': challenge.placeId.placeName
+            } 
 
             response = requests.post(api_url, files=files, data=data, timeout=60)
             response.raise_for_status()
