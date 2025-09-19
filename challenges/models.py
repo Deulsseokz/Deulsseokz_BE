@@ -64,7 +64,7 @@ class ChallengeAttempt(models.Model):
         return self.attemptDate
 
 class ChallengeAttemptUser(models.Model):
-    challengeAttemptId = models.ForeignKey('ChallengeAttempt', on_delete=models.CASCADE, db_column='challgeAttemptId')
+    challengeAttemptId = models.ForeignKey('ChallengeAttempt', on_delete=models.CASCADE, db_column='challengeAttemptId')
     userId = models.ForeignKey(User, on_delete=models.CASCADE, db_column='userId') 
 
     class Meta:

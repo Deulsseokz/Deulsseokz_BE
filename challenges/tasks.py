@@ -101,7 +101,7 @@ def process_challenge_attempt(main_attempt_id, friend_ids):
             # 4-1. 각 참여자별로 레코드 생성/업데이트
             for user_obj in participant_users:
                 attempt_instance = None
-                attempt_status = ChallengeAttempt.AttemptStatus.SUCCESS if final_success else ChallengeAttempt.AttemptStatus.FAILURE
+                attempt_status = ChallengeAttempt.AttemptStatus.SUCCESS if final_success else ChallengeAttempt.AttemptStatus.FAILED
 
                 if user_obj.userId == requester.userId:
                     # 요청자는 기존 레코드 업데이트
