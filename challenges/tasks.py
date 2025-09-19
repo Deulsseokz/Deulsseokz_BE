@@ -157,6 +157,7 @@ def process_challenge_attempt(main_attempt_id, friend_ids):
                 user_attempt_id = created_attempts[user].pk
                 data = {"attemptId": str(user_attempt_id), "type": "challenge_result"}
                 send_fcm_notification(user.fcm_token, title, body, data)
+                logger.info(f"FCM 알림 발송 : userId={user.userId}, attemptId={user_attempt_id}, title='{title}'")
 
     except Exception as e:
         logger.error(f"챌린지 시도 ID {main_attempt_id} 처리 중 에러: {e}")
