@@ -156,6 +156,16 @@ def process_challenge_attempt(main_attempt_id, friend_ids):
             if user.fcm_token:
                 user_attempt_id = created_attempts[user].pk
                 data = {"attemptId": str(user_attempt_id), "type": "challenge_result"}
+                fcm_payload = {
+                    "to": user.fcm_token,
+                    "notification": {
+                        "title": title,
+                        "body": body
+                    },
+                    "data": data
+                }
+                logger.info(f"FCM 성공 알림 발송: \n{json.dumps(fcm_payload, ensure_ascii=False, indent=2)}")
+
                 send_fcm_notification(user.fcm_token, title, body, data)
                 logger.info(f"FCM 알림 발송 : userId={user.userId}, attemptId={user_attempt_id}, title='{title}'")
 
@@ -172,5 +182,14 @@ def process_challenge_attempt(main_attempt_id, friend_ids):
                 title = "챌린지 처리 실패"
                 body = f"'{main_attempt.challengeId.placeId.placeName}' 챌린지 분석 중 오류가 발생했어요."
                 data = {"attemptId": str(main_attempt_id), "type": "challenge_result"}
+                fcm_payload = {
+                    "to": requester.fcm_token,
+                    "notification": {
+                        "title": title,
+                        "body": body
+                    },
+                    "data": data
+                }
+                logger.info(f"FCM 처리 실패 알림 발송: \n{json.dumps(fcm_payload, ensure_ascii=False, indent=2)}")
                 send_fcm_notification(requester.fcm_token, title, body, data)
                 logger.info(f"FCM 알림 발송 실패: userId={user.userId}, attemptId={user_attempt_id}, title='{title}'")

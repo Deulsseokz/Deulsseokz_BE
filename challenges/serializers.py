@@ -19,22 +19,35 @@ class ChallengeResponseSerializer(serializers.ModelSerializer):
         return self.context.get('is_favorite', False)
     
     def get_friends(self, obj):
+
+        # 현재 사용자의 ID 가져오기 
+        current_user_id = self.context.get('current_user_id')
+        if not current_user_id:
+            return []
+        
         latest_attempt = self._get_latest_attempt(obj)
         if not latest_attempt:
             return []
         return list(
             ChallengeAttemptUser.objects
             .filter(challengeAttemptId=latest_attempt)
+            .exclude(userId__userId=current_user_id)
             .values_list('userId__userId', flat=True)
         )
 
     def get_friendsProfileImage(self, obj):
+
+        current_user_id = self.context.get('current_user_id')
+        if not current_user_id:
+            return []
+        
         latest_attempt = self._get_latest_attempt(obj)
         if not latest_attempt:
             return []
         return list(
             ChallengeAttemptUser.objects
             .filter(challengeAttemptId=latest_attempt)
+            .exclude(userId__userId=current_user_id)
             .values_list('userId__profileImage', flat=True)
         )
 

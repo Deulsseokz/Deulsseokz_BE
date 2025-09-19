@@ -102,7 +102,11 @@ class ChallengeInfoView(AuthedAPIView):
             for challenge in challenges:
                 placeName = challenge.placeId.placeName
                 is_favorite = challenge.placeId.placeId in favorite_place_ids
-                serializer = ChallengeResponseSerializer(challenge, context={'is_favorite': is_favorite})
+                context = {
+                    'is_favorite': is_favorite,
+                    'current_user_id': app_user.userId  # 현재 사용자 ID 추가
+                }
+                serializer = ChallengeResponseSerializer(challenge, context=context)
                 result.append(serializer.data)
 
             return api_response(result=result)
@@ -126,7 +130,11 @@ class ChallengeInfoView(AuthedAPIView):
             for challenge in challenges:
                 placeName = challenge.placeId.placeName
                 is_favorite = challenge.placeId.placeId in favorite_place_ids
-                serializer = ChallengeResponseSerializer(challenge, context={'is_favorite': is_favorite})
+                context = {
+                    'is_favorite': is_favorite,
+                    'current_user_id': app_user.userId  # 현재 사용자 ID 추가
+                }
+                serializer = ChallengeResponseSerializer(challenge, context=context)
                 result.append(serializer.data)
 
             return api_response(result=result)
@@ -144,7 +152,18 @@ class ChallengeAttemptView(AuthedAPIView):
         place = data.get('place')
         attemptImage = data.get('attemptImage')
         attemptDate = data.get('attemptDate')
-        friend_ids = data.get('friends', []) # 친구 ID 리스트를 여기서 파싱합
+        
+        friends_str = data.get('friends', '[]')
+        try:
+            # 1. 먼저 friends_str 문자열을 파싱해서 friend_ids 변수를 생성
+            friend_ids = json.loads(friends_str)
+
+            # 2. 그 다음, 생성된 friend_ids가 리스트 타입이 맞는지 검사
+            if not isinstance(friend_ids, list):
+                friend_ids = [] # 리스트가 아니면 안전하게 빈 리스트로 초기화
+        except (json.JSONDecodeError, TypeError):
+            # JSON 파싱에 실패할 경우를 대비해 빈 리스트로 초기화
+            friend_ids = []
 
         try:
             challenge = Challenge.objects.get(placeId__placeName=place)
