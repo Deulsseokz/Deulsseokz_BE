@@ -45,12 +45,29 @@ def process_challenge_attempt(main_attempt_id, friend_ids):
                 'place_name': challenge.placeId.placeName
             } 
 
+            # DEBUG: AI 서버로 보내기 직전의 데이터 확인
+            print("\n" + "="*50)
+            print("[DEBUG] Data to send to AI Server:")
+            print(f"URL: {api_url}")
+            print(f"Image exists: {image_file_bytes is not None and len(image_file_bytes) > 0}")
+            print(f"Conditions: {data.get('conditions')}")
+            print(f"Place Name: {data.get('place_name')}")
+            print("="*50 + "\n")
+
             response = requests.post(api_url, files=files, data=data, timeout=60)
             response.raise_for_status()
 
             analysis_result = response.json()
             final_success = analysis_result.get('success', False)
             result_comment = analysis_result.get('message', 'AI 서버로부터 메시지가 없습니다.')
+
+            # DEBUG: AI 서버로부터 받은 응답 확인
+            print("\n" + "="*50)
+            print("[DEBUG] Response from AI Server:")
+            print(f"Status Code: {response.status_code}")
+            print(f"Response Body: {analysis_result}")
+            print("="*50 + "\n")
+
             logger.info(f"AI 분석 결과 수신 (시도 ID: {main_attempt_id}): {analysis_result}")
 
         except requests.RequestException as e:
