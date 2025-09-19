@@ -37,13 +37,13 @@ class PlaceAreaSearchView(APIView):
 
         places = Place.objects.filter(area__icontains=area).values_list('placeName', flat=True) # 튜플 리스트로 반환 옵션
 
-        if not places:
-            return api_response(
-                is_success=False,
-                code='PLACE_IS_NOT_VALID',
-                message='해당 지역의 장소 정보가 존재하지 않습니다.',
-                status_code = status.HTTP_404_NOT_FOUND
-            )
+        # if not places:
+        #     return api_response(
+        #         is_success=False,
+        #         code='PLACE_IS_NOT_VALID',
+        #         message='해당 지역의 장소 정보가 존재하지 않습니다.',
+        #         status_code = status.HTTP_404_NOT_FOUND
+        #     )
         
         return api_response(
             result={'place': list(places)}
