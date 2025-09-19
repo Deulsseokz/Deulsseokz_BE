@@ -179,7 +179,8 @@ class ChallengeAttemptView(AuthedAPIView):
                 "result_url": f"/challenge/result/{main_attempt.pk}/"
             }
         )
-# 챌린지 결과 조회 View (신규 클래스)
+    
+# 챌린지 결과 조회
 class ChallengeResultView(AuthedAPIView):
     def get(self, request, attempt_id):
         app_user = self.get_app_user(request)
