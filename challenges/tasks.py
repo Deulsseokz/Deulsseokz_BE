@@ -173,3 +173,4 @@ def process_challenge_attempt(main_attempt_id, friend_ids):
                 body = f"'{main_attempt.challengeId.placeId.placeName}' 챌린지 분석 중 오류가 발생했어요."
                 data = {"attemptId": str(main_attempt_id), "type": "challenge_result"}
                 send_fcm_notification(requester.fcm_token, title, body, data)
+                logger.info(f"FCM 알림 발송 실패: userId={user.userId}, attemptId={user_attempt_id}, title='{title}'")
