@@ -213,6 +213,7 @@ class ChallengeResultView(AuthedAPIView):
             # DB에 저장된 상세 결과를 사용
             "condition1": attempt.result_details.get('condition1_met', False),
             "condition2": attempt.result_details.get('condition2_met', False),
+            "condition3": attempt.result_details.get('condition3_met', False),
         }
 
         return api_response(result=result_payload)
