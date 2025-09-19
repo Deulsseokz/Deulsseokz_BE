@@ -209,7 +209,7 @@ class ChallengeResultView(AuthedAPIView):
         result_payload = {
             "attemptResult": attempt.attemptResult,
             "attempt": current_attempt_number,
-            "resultComment": attempt.resultComment,
+            #"resultComment": attempt.resultComment,
             # DB에 저장된 상세 결과를 사용
             "condition1": attempt.result_details.get('condition1_met', False),
             "condition2": attempt.result_details.get('condition2_met', False),
