@@ -19,8 +19,6 @@ class FavoritePlace(models.Model):
     favoritePlaceId = models.BigAutoField(primary_key=True)
     placeId = models.ForeignKey(Place, on_delete=models.CASCADE, db_column='placeId')
     userId = models.ForeignKey(User, on_delete=models.CASCADE, db_column='userId')
-from django.db import models
-from users.models import User
 
 # Create your models here.
 class Place(models.Model):

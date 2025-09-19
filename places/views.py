@@ -7,6 +7,7 @@ from challenges.models import ChallengeAttempt, ChallengeAttemptUser
 from .query_serializers import PlaceAreaSearchQuerySerializer, PlaceQuerySerializer
 from .serializers import favoritePlaceSerializer
 from utils.response_wrapper import api_response
+from collections import defaultdict # 그룹화를 위해 추가
 logger = logging.getLogger(__name__)
 
 # 유저 관련 import
@@ -144,4 +145,26 @@ class RecommendPlaceView(AuthedAPIView):
             result=result
         )
     
-# class AreaPlaceView()
+# 지역별 장소 조회
+class AreaPlaceView(APIView):
+    def get(self, request):
+        # 토큰 필요 없는 API
+
+        places_queryset = Place.objects.exclude(area__isnull=True).values('area', 'placeName')
+        grouped_places = defaultdict(list)
+        for item in places_queryset:
+            grouped_places[item['area']].append(item['placeName'])
+
+        result_list = [
+            {"area": area, "places": places}
+            for area, places in grouped_places.items()
+        ]
+        if not result_list:
+            return api_response(
+                is_success=False,
+                code='PLACE_NOT_FOUND',
+                message='조회할 장소 데이터가 존재하지 않습니다.',
+                status_code = status.HTTP_404_NOT_FOUND
+            )
+
+        return api_response(result=result_list)
