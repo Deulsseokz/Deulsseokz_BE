@@ -1,6 +1,7 @@
 import requests
 import logging
 import json
+import mimetypes
 from celery import shared_task
 from django.core.files.base import ContentFile
 from django.conf import settings
@@ -36,7 +37,12 @@ def process_challenge_attempt(main_attempt_id, friend_ids):
             main_attempt.attemptImage.seek(0)
             image_file_bytes = main_attempt.attemptImage.read()
             
-            files = {'image': (main_attempt.attemptImage.name, image_file_bytes, 'image/jpeg')}
+            image_name = main_attempt.attemptImage.name
+            content_type, _ = mimetypes.guess_type(image_name)
+            if content_type is None:
+                content_type = 'application/octet-stream' # 타입을 알 수 없을 때의 기본값
+
+            files = {'image': (image_name, image_file_bytes, content_type)}
             
             # utils 함수를 통해 키워드 리스트 추출
             condition_keywords = extract_conditions(challenge)
