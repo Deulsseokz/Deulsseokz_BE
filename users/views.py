@@ -443,9 +443,9 @@ class FriendLinkOpenView(AuthedAPIView):
 # 푸시알림을 위한 FCM 토큰 등록 
 # 프론트에서 FCM 토큰을 받아 저장해야함 (유저는 로그인 상태)
 class RegisterFCMTokenView(AuthedAPIView):
-    def post(self, request, *args, **kwargs):
+    def post(self, request):
 
-        token = request.data.get('fcm_token')
+        token = request.data.get('fcm-token')
         app_user = self.get_app_user(request)
         
         # fcm_token 저장 (혹은 업데이트)
