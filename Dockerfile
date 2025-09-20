@@ -1,6 +1,5 @@
 FROM python:3.11-slim
 
-# 시스템 패키지 설치 (mysqlclient 빌드에 필요)
 RUN apt-get update && apt-get install -y \
     gcc \
     libjpeg-dev \
@@ -8,15 +7,15 @@ RUN apt-get update && apt-get install -y \
     default-libmysqlclient-dev \
     build-essential \
     pkg-config \
+    netcat-traditional \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY . /app
 
-RUN pip install --upgrade pip \
- && pip install -r requirements.txt
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
-RUN apt-get update && apt-get install -y netcat-traditional && rm -rf /var/lib/apt/lists/*
+COPY . .
 
 EXPOSE 8000
 
