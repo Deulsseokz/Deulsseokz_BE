@@ -15,6 +15,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import NotFound, PermissionDenied
 
+from rest_framework.permissions import AllowAny
+
 # 유저 관련 공통 베이스 뷰
 class AuthedAPIView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -51,18 +53,21 @@ class PlaceAreaSearchView(APIView):
 
 class FavoritePlaceView(AuthedAPIView):
     # 관심 장소 등록
+    permission_classes = [AllowAny]
+
     def post(self, request):
-        app_user = self.get_app_user(request)
+        #app_user = self.get_app_user(request)
+        app_user = User.objects.get(userId = 3)
 
         serializer = favoritePlaceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         validated = serializer.validated_data
 
-        place = validated['place']
+        place_name= validated['place']
         isFavorite = validated['isFavorite']
 
         try:
-            place = Place.objects.get(placeName = place)
+            place_obj = Place.objects.get(placeName = place_name)
         except Place.DoesNotExist:
             return api_response(
                 code="LOCATION_INVALID",
@@ -70,18 +75,19 @@ class FavoritePlaceView(AuthedAPIView):
             )
 
         if isFavorite is True:
-            if not FavoritePlace.objects.filter(userId=app_user, placeId=place).exists():
-                FavoritePlace.objects.create(userId=app_user, placeId=place)
-            return api_response(
-                result=f"{place}가 관심장소에 등록되었습니다."
-            )
+            obj, created = FavoritePlace.objects.get_or_create(userId=app_user, placeId=place_obj) 
+
+            if created:
+                message = f"{place_obj.placeName}가 관심장소에 등록되었습니다."
+            else:
+                message = f"{place_obj.placeName}는 이미 등록된 관심장소입니다."
+            
+            return api_response(result=message)
+
         else:
-            FavoritePlace.objects.filter(
-                userId=User.objects.get(userId=app_user),
-                placeId=place
-            ).delete()
+            FavoritePlace.objects.filter(userId=app_user, placeId=place_obj).delete() 
             return api_response(
-                result=f"{place}가 관심장소에 삭제되었습니다."
+                result=f"{place_obj.placeName}가 관심장소에서 삭제되었습니다."
             )
 
     # 관심 장소 조회
