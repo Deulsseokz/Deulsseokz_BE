@@ -5,12 +5,18 @@ from challenges.storages import PublicMediaStorage
 
 # Create your models here.
 import uuid
+import unicodedata
+import re
 
 def attempt_image_upload_path(instance, filename):
-    ext = filename.split('.')[-1]
-    user_id = instance.userId.userId
-    place_name = instance.challengeId.placeId.placeName.replace(" ", "_")
-    return f"{user_id}/{place_name}/{uuid.uuid4().hex}.{ext}"
+    # 폴더명으로 사용할 수 없는 특수문자 등을 정리하는 함수
+    def sanitize_folder_name(name: str) -> str:
+        # 유니코드 정규화 (예: 'ㄱ' + 'ㅏ' -> '가')
+        name = unicodedata.normalize("NFKD", name)
+        # 안전한 문자(알파벳, 숫자, 공백, 하이픈, 한글)만 남기고 제거
+        name = re.sub(r"[^\w\s\-가-힣]", "", name)
+        # 양쪽 공백 제거 후, 내부 공백은 밑줄(_)로 변경
+        return name.strip().replace(" ", "_")
 
 def user_place_attempt_path(instance, filename):
     ext = filename.split('.')[-1]
