@@ -17,6 +17,18 @@ def attempt_image_upload_path(instance, filename):
         name = re.sub(r"[^\w\s\-가-힣]", "", name)
         # 양쪽 공백 제거 후, 내부 공백은 밑줄(_)로 변경
         return name.strip().replace(" ", "_")
+    
+    # 인스턴스에서 정보 추출
+    user_id = instance.userId.userId
+    place_name = sanitize_folder_name(instance.challengeId.placeId.placeName)
+    
+    # 파일 확장자 추출
+    ext = filename.split('.')[-1]
+    
+    # 하이픈(-)이 포함된 고유한 파일명 생성
+    unique_filename = f"{uuid.uuid4()}.{ext}"
+    
+    return f"{user_id}/{place_name}/{unique_filename}"
 
 def user_place_attempt_path(instance, filename):
     ext = filename.split('.')[-1]
