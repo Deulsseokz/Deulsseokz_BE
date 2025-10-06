@@ -27,6 +27,7 @@ django-cors-headers
 python-dotenv
 python-decouple
 pillow
+olefile
 
 # Firebase 
 firebase-admin
