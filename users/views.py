@@ -34,8 +34,8 @@ def _generate_code(length: int = 12) -> str:
 def _build_friend_url(request, code: str) -> str:
     base = getattr(settings, "FRIEND_WEB_BASE_URL", None)
     if base:
-        return f"{base.rstrip('/')}/i/f/{code}"
-    return request.build_absolute_uri(f"/i/f/{code}")
+        return f"{base.rstrip('/')}/invite/{code}"
+    return request.build_absolute_uri(f"/invite/{code}")
 
 # 유저 관련 공통 베이스 뷰
 class AuthedAPIView(APIView):
