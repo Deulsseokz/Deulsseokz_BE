@@ -19,7 +19,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import NotFound, PermissionDenied
 
-
 # 유저 관련 공통 베이스 뷰
 class AuthedAPIView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -48,16 +47,18 @@ class AlbumListView(AuthedAPIView):
         
         result = []
         for album in albums:
-            photo_urls = []
-            for photo in album.photos.all():
-                if photo.photoUrl:  # FileField 또는 ImageField라고 가정
-                    url = photo.photoUrl.url
-                    photo_urls.append(url)
+            # 대표 사진이 가장 먼저 응답되도록 수정
+            rep_photo = album.representativePhotoId
+            rep_photo_id = rep_photo.photoId if rep_photo else None
+            all_photos = list(album.photos.all())
+
+            sorted_photos = sorted(all_photos, key=lambda p: p.photoId != rep_photo_id)
+            photo_urls = [p.photoUrl.url for p in sorted_photos if p.photoUrl]
 
             result.append({
                 "id": album.albumId,
                 "place": album.placeId.placeName,
-                "representPhoto": photo_urls
+                "representPhoto": photo_urls 
             })
 
         return api_response(
