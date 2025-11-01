@@ -15,7 +15,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import NotFound, PermissionDenied
 
-from rest_framework.permissions import AllowAny
 
 # 유저 관련 공통 베이스 뷰
 class AuthedAPIView(APIView):
@@ -53,11 +52,8 @@ class PlaceAreaSearchView(APIView):
 
 class FavoritePlaceView(AuthedAPIView):
     # 관심 장소 등록
-    permission_classes = [AllowAny]
-
     def post(self, request):
-        #app_user = self.get_app_user(request)
-        app_user = User.objects.get(userId = 3)
+        app_user = self.get_app_user(request)
 
         serializer = favoritePlaceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
