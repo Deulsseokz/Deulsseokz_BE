@@ -20,11 +20,7 @@ class User(models.Model):
         on_delete=models.SET_NULL, # 뱃지가 삭제되어도 유저는 남도록 
         null=True
     )
-<<<<<<< HEAD
     fcm_token = models.CharField(max_length=255, null=True),
-=======
-    fcm_token = models.CharField(max_length=255, null=True)
->>>>>>> 067442ae3d4a7e3be0d533184209bc4f9938918e
     apple_sub = models.CharField(max_length=255, unique=True, null=True, blank=True)
 
     class Meta:
