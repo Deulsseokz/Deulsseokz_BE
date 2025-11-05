@@ -116,7 +116,7 @@ class AppleSignInView(APIView):
                     app_user.save(update_fields=["auth"])
             else:
                 app_user = AppUser.objects.create(
-                    auth=auth_user,  # ★ 필드명 통일
+                    auth=auth_user,  # 필드명 통일
                     userName=full_name or (email or auth_user.username),
                     profileImage=None,
                     representBadgeId=1, # 가입 시 첫 만남 배지 부여
