@@ -70,18 +70,36 @@ class AppleSignInView(APIView):
         username_seed = email or f"apple-{apple_sub}"
         full_name = request.data.get("fullName")
 
+        # apple sub 필수 (없으면 오류)
+        if not apple_sub:
+            return Response({"detail": "Apple sub is missing"}, status=400)
+
         with transaction.atomic():
-            # 2) 인증 유저 upsert
-            if email:
-                auth_user, created_auth = AuthUser.objects.get_or_create(
-                    email=email,
-                    defaults={"username": _build_unique_username(username_seed)},
-                )
+            created_auth = False
+            auth_user = None
+
+            # 2-A) 1순위: apple_sub로 조회 (이메일 가리기 사용자를 포함한 모든 Apple 유저 식별)
+            auth_user = AuthUser.objects.filter(apple_sub=apple_sub).first()
+            
+            # 2-B) 2순위: sub로 찾지 못했고, email 정보가 있다면 email로 조회 (구형 유저 호환용)
+            if not auth_user and email:
+                auth_user = AuthUser.objects.filter(email=email).first()
+
+            if auth_user:
+                # 유저를 찾았다면, 혹시 sub가 누락되어 있을 경우 업데이트 (마이그레이션)
+                if not auth_user.apple_sub:
+                    auth_user.apple_sub = apple_sub
+                    auth_user.save(update_fields=["apple_sub"])
             else:
-                auth_user, created_auth = AuthUser.objects.get_or_create(
-                    username=_build_unique_username(username_seed),
-                    defaults={"email": None},
+                # 2-C) 완전히 새로운 유저 생성
+                username_for_creation = _build_unique_username(username_seed)
+                
+                auth_user = AuthUser.objects.create(
+                    username=username_for_creation,
+                    email=email,
+                    apple_sub=apple_sub, # 새로 생성 시 sub 저장
                 )
+                created_auth = True
 
             # 3) 앱 유저 1:1 보장 (필드명: auth)
             app_user = AppUser.objects.filter(auth=auth_user).first()
@@ -98,7 +116,7 @@ class AppleSignInView(APIView):
                     app_user.save(update_fields=["auth"])
             else:
                 app_user = AppUser.objects.create(
-                    auth=auth_user,  # ★ 필드명 통일
+                    auth=auth_user,  # 필드명 통일
                     userName=full_name or (email or auth_user.username),
                     profileImage=None,
                     representBadgeId=1, # 가입 시 첫 만남 배지 부여

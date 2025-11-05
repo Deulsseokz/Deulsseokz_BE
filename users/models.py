@@ -21,6 +21,7 @@ class User(models.Model):
         null=True
     )
     fcm_token = models.CharField(max_length=255, null=True)
+    apple_sub = models.CharField(max_length=255, unique=True, null=True, blank=True)
 
     class Meta:
         db_table = 'User'
