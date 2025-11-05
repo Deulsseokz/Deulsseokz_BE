@@ -71,6 +71,7 @@ class AppleSignInView(APIView):
         full_name = request.data.get("fullName")
 
         with transaction.atomic():
+            is_new_app_user = False # 변수 초기화
             # 2) 인증 유저 upsert
             if email:
                 auth_user, created_auth = AuthUser.objects.get_or_create(
@@ -102,18 +103,36 @@ class AppleSignInView(APIView):
                     auth=auth_user,  # ★ 필드명 통일
                     userName=full_name or (email or auth_user.username),
                     profileImage=None,
-                    representBadgeId=starter_badge, # 가입 시 첫 만남 배지 부여
+                    representBadge=None
                 )
+                is_new_app_user = True
 
-            # UserBadge에도 배지 1 부여
-            try:
-                starter_badge = Badge.objects.get(pk=1)
-                UserBadge.objects.get_or_create(
-                    userId=app_user,
-                    badgeId=starter_badge,
-                )
-            except Badge.DoesNotExist:
-                logger.warning("Badge(pk=1)가 존재하지 않아 UserBadge 부여를 건너뜀")
+            if is_new_app_user:
+                try:
+                    starter_badge = Badge.objects.get(pk=1)
+                    
+                    # 1. UserBadge 레코드 생성 (모델 필드명 userId, badgeId 사용)
+                    UserBadge.objects.get_or_create(
+                        userId=app_user,
+                        badgeId=starter_badge,
+                    )
+                    
+                    # 2. 대표 '첫만남' 배지 부여
+                    app_user.representBadge = starter_badge
+                    app_user.save(update_fields=['representBadge'])
+                    
+                except Badge.DoesNotExist:
+                    logger.warning("Badge(pk=1)가 존재하지 않아 UserBadge 부여를 건너뜀")
+
+            # # UserBadge에도 배지 1 부여
+            # try:
+            #     starter_badge = Badge.objects.get(pk=1)
+            #     UserBadge.objects.get_or_create(
+            #         userId=app_user,
+            #         badgeId=starter_badge,
+            #     )
+            # except Badge.DoesNotExist:
+            #     logger.warning("Badge(pk=1)가 존재하지 않아 UserBadge 부여를 건너뜀")
 
         # 4) 토큰 발급
         refresh = RefreshToken.for_user(auth_user)
