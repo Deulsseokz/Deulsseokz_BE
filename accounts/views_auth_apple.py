@@ -11,7 +11,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from users.models import User as AppUser
+# from users.models import User as AppUser
+from accounts.models import User as AppUser
 from badges.models import UserBadge, Badge
 
 AuthUser = get_user_model()
