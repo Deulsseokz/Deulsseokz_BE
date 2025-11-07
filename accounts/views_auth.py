@@ -15,7 +15,8 @@ from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.settings import api_settings
-from users.models import User as AppUser
+# from users.models import User as AppUser
+from accounts.models import User as AppUser
 from badges.models import UserBadge, Badge
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,7 @@ class GoogleIdTokenLogin(APIView):
             )
 
             app_user, created_app_user = AppUser.objects.get_or_create(
-                auth=auth_user,
+                email=email,
                 defaults={
                     "userName": payload.get("name") or getattr(auth_user, "username", None),
                     "profileImage": payload.get("picture"),
